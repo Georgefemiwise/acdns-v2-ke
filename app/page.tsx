@@ -4,16 +4,20 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Car, Users, Camera, MessageSquare, Activity, Zap } from "lucide-react"
+import { Car, Users, Camera, MessageSquare, Activity, Zap, LogOut } from 'lucide-react'
+import { AuthModal } from "@/components/AuthModal"
+import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 
 export default function Dashboard() {
+  const { user, signOut, loading } = useAuth()
   const [stats, setStats] = useState({
     totalCars: 0,
     totalUsers: 0,
     activeCameras: 0,
     smsCount: 0,
   })
+  const [authModalOpen, setAuthModalOpen] = useState(false)
 
   useEffect(() => {
     // Simulate loading stats
@@ -27,6 +31,14 @@ export default function Dashboard() {
     }, 1000)
     return () => clearTimeout(timer)
   }, [])
+
+  const handleProtectedAction = (action: () => void) => {
+    if (!user) {
+      setAuthModalOpen(true)
+      return
+    }
+    action()
+  }
 
   const StatCard = ({ title, value, icon: Icon, description, trend }: any) => (
     <Card className="bg-gray-900/50 border-cyan-500/30 hover:border-cyan-400/50 transition-all duration-300 group">
@@ -46,6 +58,17 @@ export default function Dashboard() {
     </Card>
   )
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <Zap className="h-12 w-12 text-cyan-400 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-400">Loading CyberWatch...</p>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
       {/* Cyberpunk Grid Background */}
@@ -63,25 +86,56 @@ export default function Dashboard() {
                 </h1>
               </div>
               <nav className="hidden md:flex items-center space-x-6">
-                <Link href="/camera" className="text-gray-300 hover:text-cyan-400 transition-colors">
+                <button
+                  onClick={() => handleProtectedAction(() => window.location.href = '/camera')}
+                  className="text-gray-300 hover:text-cyan-400 transition-colors"
+                >
                   Live Feed
-                </Link>
-                <Link href="/cars" className="text-gray-300 hover:text-cyan-400 transition-colors">
+                </button>
+                <button
+                  onClick={() => handleProtectedAction(() => window.location.href = '/cars')}
+                  className="text-gray-300 hover:text-cyan-400 transition-colors"
+                >
                   Car Registry
-                </Link>
-                <Link href="/sms" className="text-gray-300 hover:text-cyan-400 transition-colors">
+                </button>
+                <button
+                  onClick={() => handleProtectedAction(() => window.location.href = '/sms')}
+                  className="text-gray-300 hover:text-cyan-400 transition-colors"
+                >
                   SMS Center
-                </Link>
-                <Link href="/profile" className="text-gray-300 hover:text-cyan-400 transition-colors">
-                  Profile
-                </Link>
+                </button>
+                {user && (
+                  <Link href="/profile" className="text-gray-300 hover:text-cyan-400 transition-colors">
+                    Profile
+                  </Link>
+                )}
               </nav>
-              <Button
-                variant="outline"
-                className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
-              >
-                <Link href="/auth/login">Login</Link>
-              </Button>
+              <div className="flex items-center space-x-2">
+                {user ? (
+                  <div className="flex items-center space-x-3">
+                    <span className="text-sm text-gray-300">
+                      Welcome, {user.user_metadata?.first_name || user.email}
+                    </span>
+                    <Button
+                      onClick={signOut}
+                      variant="outline"
+                      size="sm"
+                      className="border-red-500/50 text-red-400 hover:bg-red-500/10 bg-transparent"
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      Logout
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    onClick={() => setAuthModalOpen(true)}
+                    variant="outline"
+                    className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
+                  >
+                    Login
+                  </Button>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -101,19 +155,19 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 size="lg"
+                onClick={() => handleProtectedAction(() => window.location.href = '/camera')}
                 className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600"
               >
-                <Link href="/camera" className="flex items-center">
-                  <Camera className="mr-2 h-5 w-5" />
-                  Start Monitoring
-                </Link>
+                <Camera className="mr-2 h-5 w-5" />
+                Start Monitoring
               </Button>
               <Button
                 size="lg"
                 variant="outline"
+                onClick={() => handleProtectedAction(() => window.location.href = '/cars')}
                 className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
               >
-                <Link href="/cars">View Database</Link>
+                View Database
               </Button>
             </div>
           </div>
@@ -163,8 +217,11 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/50">
-                  <Link href="/camera">Access Feed</Link>
+                <Button 
+                  onClick={() => handleProtectedAction(() => window.location.href = '/camera')}
+                  className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/50"
+                >
+                  Access Feed
                 </Button>
               </CardContent>
             </Card>
@@ -180,8 +237,11 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50">
-                  <Link href="/cars/register">Register Car</Link>
+                <Button 
+                  onClick={() => handleProtectedAction(() => window.location.href = '/cars/register')}
+                  className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50"
+                >
+                  Register Car
                 </Button>
               </CardContent>
             </Card>
@@ -197,8 +257,11 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/50">
-                  <Link href="/sms">SMS Center</Link>
+                <Button 
+                  onClick={() => handleProtectedAction(() => window.location.href = '/sms')}
+                  className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/50"
+                >
+                  SMS Center
                 </Button>
               </CardContent>
             </Card>
@@ -249,6 +312,15 @@ export default function Dashboard() {
           </Card>
         </main>
       </div>
+
+      <AuthModal 
+        isOpen={authModalOpen} 
+        onClose={() => setAuthModalOpen(false)}
+        onSuccess={() => {
+          // Refresh the page or update state as needed
+          window.location.reload()
+        }}
+      />
     </div>
   )
 }

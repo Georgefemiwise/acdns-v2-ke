@@ -5,9 +5,11 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Play, Square, Settings, Maximize, ArrowLeft } from "lucide-react"
+import { Play, Square, Settings, Maximize, ArrowLeft } from 'lucide-react'
+import { Camera } from 'lucide-react'
+import { AuthModal } from "@/components/AuthModal"
+import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
-import { Camera } from "lucide-react"
 
 // Define the Camera type
 interface CameraType {
@@ -21,16 +23,27 @@ interface CameraType {
 }
 
 export default function CameraFeed() {
+  const { user, loading } = useAuth()
   const [selectedCamera, setSelectedCamera] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
   const [detectedCars, setDetectedCars] = useState<any[]>([])
+  const [authModalOpen, setAuthModalOpen] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
   const [cameras, setCameras] = useState<CameraType[]>([])
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingCameras, setIsLoadingCameras] = useState(true)
+
+  // Check authentication on mount
+  useEffect(() => {
+    if (!loading && !user) {
+      setAuthModalOpen(true)
+    }
+  }, [user, loading])
 
   // Fetch cameras from Supabase
   useEffect(() => {
+    if (!user) return
+
     const fetchCameras = async () => {
       try {
         // This would be replaced with actual Supabase call
@@ -69,10 +82,10 @@ export default function CameraFeed() {
           },
         ]
         setCameras(mockCameras)
-        setIsLoading(false)
+        setIsLoadingCameras(false)
       } catch (error) {
         console.error("Failed to fetch cameras:", error)
-        setIsLoading(false)
+        setIsLoadingCameras(false)
       }
     }
 
@@ -81,10 +94,10 @@ export default function CameraFeed() {
     // Set up real-time camera status updates
     const interval = setInterval(fetchCameras, 30000) // Update every 30 seconds
     return () => clearInterval(interval)
-  }, [])
+  }, [user])
 
   useEffect(() => {
-    if (isStreaming) {
+    if (isStreaming && user) {
       // Simulate car detection
       const interval = setInterval(
         () => {
@@ -101,9 +114,14 @@ export default function CameraFeed() {
 
       return () => clearInterval(interval)
     }
-  }, [isStreaming])
+  }, [isStreaming, user])
 
   const startStream = async () => {
+    if (!user) {
+      setAuthModalOpen(true)
+      return
+    }
+
     if (!selectedCamera) return
 
     const camera = cameras.find((c) => c.id === selectedCamera)
@@ -162,7 +180,7 @@ export default function CameraFeed() {
 
   // Add camera health check
   useEffect(() => {
-    if (!isStreaming || !selectedCamera) return
+    if (!isStreaming || !selectedCamera || !user) return
 
     const healthCheck = setInterval(() => {
       const camera = cameras.find((c) => c.id === selectedCamera)
@@ -173,7 +191,30 @@ export default function CameraFeed() {
     }, 5000)
 
     return () => clearInterval(healthCheck)
-  }, [isStreaming, selectedCamera, cameras])
+  }, [isStreaming, selectedCamera, cameras, user])
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <Camera className="h-12 w-12 text-cyan-400 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-400">Loading camera system...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <AuthModal 
+          isOpen={authModalOpen} 
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={() => window.location.reload()}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
@@ -195,9 +236,14 @@ export default function CameraFeed() {
                   Live Camera Feed
                 </h1>
               </div>
-              <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
-                {cameras.filter((c) => c.status === "online").length} Cameras Online
-              </Badge>
+              <div className="flex items-center space-x-4">
+                <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
+                  {cameras.filter((c) => c.status === "online").length} Cameras Online
+                </Badge>
+                <span className="text-sm text-gray-300">
+                  {user.user_metadata?.first_name || user.email}
+                </span>
+              </div>
             </div>
           </div>
         </header>
@@ -348,6 +394,8 @@ export default function CameraFeed() {
                   ) : (
                     <div className="text-center py-8">
                       <Camera className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-400">No detections yet</p>
+                      <p className="text-gray
                       <p className="text-gray-400">No detections yet</p>
                       <p className="text-gray-500 text-sm">Start streaming to see detected vehicles</p>
                     </div>

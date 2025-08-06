@@ -1,21 +1,25 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Send, Users, ArrowLeft, Plus, Trash2 } from "lucide-react"
+import { MessageSquare, Send, Users, ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { AuthModal } from "@/components/AuthModal"
+import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 
 import { aiSmsGenerator, AiSmsGenerator } from "@/lib/ai-sms-generator"
 import type { SmsGenerationOptions } from "@/lib/ai-sms-generator"
 
 export default function SMSCenter() {
+  const { user, loading } = useAuth()
   const [message, setMessage] = useState("")
   const [newRecipient, setNewRecipient] = useState({ name: "", phone: "" })
+  const [authModalOpen, setAuthModalOpen] = useState(false)
 
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false)
   const [messageOptions, setMessageOptions] = useState<Partial<SmsGenerationOptions>>({
@@ -25,6 +29,13 @@ export default function SMSCenter() {
     includeEmoji: false,
   })
   const [generatedVariations, setGeneratedVariations] = useState<string[]>([])
+
+  // Check authentication on mount
+  useEffect(() => {
+    if (!loading && !user) {
+      setAuthModalOpen(true)
+    }
+  }, [user, loading])
 
   const recipients = [
     { id: 1, name: "Security Team", phone: "+1-555-0101", active: true, lastSent: "2024-01-15 14:30" },
@@ -65,6 +76,10 @@ export default function SMSCenter() {
   ]
 
   const handleSendMessage = () => {
+    if (!user) {
+      setAuthModalOpen(true)
+      return
+    }
     if (!message.trim()) return
     // Handle sending SMS
     console.log("Sending message:", message)
@@ -72,6 +87,10 @@ export default function SMSCenter() {
   }
 
   const handleAddRecipient = () => {
+    if (!user) {
+      setAuthModalOpen(true)
+      return
+    }
     if (!newRecipient.name.trim() || !newRecipient.phone.trim()) return
     // Handle adding recipient
     console.log("Adding recipient:", newRecipient)
@@ -79,6 +98,11 @@ export default function SMSCenter() {
   }
 
   const generateAIMessage = async () => {
+    if (!user) {
+      setAuthModalOpen(true)
+      return
+    }
+
     setIsGeneratingMessage(true)
     try {
       const placeholders = {
@@ -107,6 +131,29 @@ export default function SMSCenter() {
     }
   }
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <MessageSquare className="h-12 w-12 text-cyan-400 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-400">Loading SMS center...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <AuthModal 
+          isOpen={authModalOpen} 
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={() => window.location.reload()}
+        />
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
       <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.1)_1px,transparent_1px)] bg-[size:50px_50px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
@@ -127,9 +174,14 @@ export default function SMSCenter() {
                   SMS Notification Center
                 </h1>
               </div>
-              <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
-                {recipients.filter((r) => r.active).length} Active Recipients
-              </Badge>
+              <div className="flex items-center space-x-4">
+                <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
+                  {recipients.filter((r) => r.active).length} Active Recipients
+                </Badge>
+                <span className="text-sm text-gray-300">
+                  {user.user_metadata?.first_name || user.email}
+                </span>
+              </div>
             </div>
           </div>
         </header>
