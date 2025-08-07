@@ -1,11 +1,24 @@
 import { generateText } from "ai"
 import { openai } from "@ai-sdk/openai"
-import type { SmsPlaceholders, Detection, Camera, Vehicle } from "@/types/database"
 
 // =============================================
 // AI SMS MESSAGE GENERATOR
 // Uses OpenAI to create engaging, personalized SMS messages
 // =============================================
+
+export interface SmsPlaceholders {
+  vehicleLicense?: string
+  vehicleMake?: string
+  vehicleModel?: string
+  ownerName?: string
+  ownerPhone?: string
+  cameraName?: string
+  cameraLocation?: string
+  detectionTime?: string
+  confidenceScore?: string
+  systemName?: string
+  operatorName?: string
+}
 
 export interface SmsGenerationOptions {
   messageType: "detection" | "alert" | "welcome" | "reminder" | "system"
@@ -99,42 +112,7 @@ export class AiSmsGenerator {
    */
   async generateVariations(options: SmsGenerationOptions, count = 3): Promise<GeneratedSmsMessage[]> {
     const variations = await Promise.all(Array.from({ length: count }, () => this.generateMessage(options)))
-
     return variations
-  }
-
-  /**
-   * Generate message from detection event
-   */
-  async generateDetectionMessage(
-    detection: Detection,
-    camera: Camera,
-    vehicle?: Vehicle,
-    options: Partial<SmsGenerationOptions> = {},
-  ): Promise<GeneratedSmsMessage> {
-    const placeholders: SmsPlaceholders = {
-      vehicleLicense: detection.license_plate,
-      vehicleMake: vehicle?.make,
-      vehicleModel: vehicle?.model,
-      ownerName: vehicle?.owner_name,
-      ownerPhone: vehicle?.owner_phone,
-      cameraName: camera.name,
-      cameraLocation: camera.location,
-      detectionTime: new Date(detection.detection_timestamp).toLocaleString(),
-      confidenceScore: (detection.confidence_score * 100).toFixed(1),
-      systemName: "CyberWatch",
-    }
-
-    const generationOptions: SmsGenerationOptions = {
-      messageType: "detection",
-      tone: "professional",
-      length: "medium",
-      includeEmoji: false,
-      placeholders,
-      ...options,
-    }
-
-    return this.generateMessage(generationOptions)
   }
 
   /**
