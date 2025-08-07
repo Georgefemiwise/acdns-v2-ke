@@ -5,8 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Play, Square, Settings, Maximize, ArrowLeft } from 'lucide-react'
-import { Camera } from 'lucide-react'
+import { Play, Square, Settings, Maximize, ArrowLeft, Camera } from 'lucide-react'
 import { AuthModal } from "@/components/AuthModal"
 import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
@@ -394,8 +393,6 @@ export default function CameraFeed() {
                   ) : (
                     <div className="text-center py-8">
                       <Camera className="h-12 w-12 text-gray-600 mx-auto mb-3" />
-                      <p className="text-gray-400">No detections yet</p>
-                      <p className="text-gray
                       <p className="text-gray-400">No detections yet</p>
                       <p className="text-gray-500 text-sm">Start streaming to see detected vehicles</p>
                     </div>
