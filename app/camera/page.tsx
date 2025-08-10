@@ -116,56 +116,54 @@ export default function CameraFeed() {
   }, [isStreaming, user])
 
   const startStream = async () => {
-    if (!user) {
-      setAuthModalOpen(true)
-      return
-    }
+    if (!selectedCamera) return;
 
-    if (!selectedCamera) return
-
-    const camera = cameras.find((c) => c.id === selectedCamera)
-    if (!camera) return
+    const camera = cameras.find((c) => c.id === selectedCamera);
+    if (!camera) return;
 
     try {
-      let stream: MediaStream
+      let stream: MediaStream | undefined;
 
       if (camera.stream_url.startsWith("rtsp://")) {
-        // For RTSP streams, we'd typically use a WebRTC gateway
-        // For demo purposes, we'll use getUserMedia
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             width: { ideal: 1920 },
             height: { ideal: 1080 },
             frameRate: { ideal: 30 },
           },
-        })
-      } else if (camera.stream_url.startsWith("http://") || camera.stream_url.startsWith("https://")) {
-        // For HTTP streams, we'd set the video src directly
+        });
+      } else if (
+        camera.stream_url.startsWith("http://") ||
+        camera.stream_url.startsWith("https://")
+      ) {
         if (videoRef.current) {
-          videoRef.current.src = camera.stream_url
-          setIsStreaming(true)
-          return
+          videoRef.current.src = camera.stream_url;
+          setIsStreaming(true);
+          return;
         }
       } else {
-        // Default to getUserMedia for demo
-        stream = await navigator.mediaDevices.getUserMedia({ video: true })
+        stream = await navigator.mediaDevices.getUserMedia({ video: true });
       }
 
       if (videoRef.current && stream) {
-        videoRef.current.srcObject = stream
-        setIsStreaming(true)
+        videoRef.current.srcObject = stream;
+        setIsStreaming(true);
 
-        // Update camera status to indicate active streaming
         setCameras((prev) =>
-          prev.map((c) => (c.id === selectedCamera ? { ...c, last_heartbeat: new Date().toISOString() } : c)),
-        )
+          prev.map((c) =>
+            c.id === selectedCamera
+              ? { ...c, last_heartbeat: new Date().toISOString() }
+              : c
+          )
+        );
       }
     } catch (error) {
-      console.error("Error accessing camera:", error)
-      // Show user-friendly error message
-      alert(`Failed to connect to camera: ${camera.name}. Please check camera status.`)
+      console.error("Error accessing camera:", error);
+      alert(
+        `Failed to connect to camera: ${camera.name}. Please check camera status.`
+      );
     }
-  }
+  };
 
   const stopStream = () => {
     if (videoRef.current?.srcObject) {
