@@ -236,7 +236,7 @@ export default function SMSCenter() {
                         <select
                           className="bg-gray-800 border-gray-700 text-white text-sm rounded px-2 py-1"
                           value={messageOptions.tone}
-                          onChange={(e) => setMessageOptions((prev) => ({ ...prev, tone: e.target.value as any }))}
+                          onChange={(e) => setMessageOptions((prev) => ({ ...prev, tone: e.target.value as string }))}
                         >
                           <option value="professional">Professional</option>
                           <option value="friendly">Friendly</option>
@@ -247,7 +247,7 @@ export default function SMSCenter() {
                         <select
                           className="bg-gray-800 border-gray-700 text-white text-sm rounded px-2 py-1"
                           value={messageOptions.length}
-                          onChange={(e) => setMessageOptions((prev) => ({ ...prev, length: e.target.value as any }))}
+                          onChange={(e) => setMessageOptions((prev) => ({ ...prev, length: e.target.value as string }))}
                         >
                           <option value="short">Short</option>
                           <option value="medium">Medium</option>
@@ -258,7 +258,7 @@ export default function SMSCenter() {
                           className="bg-gray-800 border-gray-700 text-white text-sm rounded px-2 py-1"
                           value={messageOptions.messageType}
                           onChange={(e) =>
-                            setMessageOptions((prev) => ({ ...prev, messageType: e.target.value as any }))
+                            setMessageOptions((prev) => ({ ...prev, messageType: e.target.value as string }))
                           }
                         >
                           <option value="detection">Detection</option>

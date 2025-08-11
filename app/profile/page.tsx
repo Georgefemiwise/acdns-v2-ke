@@ -1,17 +1,31 @@
-"use client"
+"use client";
 
-import { useState } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, Shield, ArrowLeft, Save, Camera } from "lucide-react"
-import Link from "next/link"
+import { useState } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import {
+  User,
+  Mail,
+  Phone,
+  Shield,
+  ArrowLeft,
+  Save,
+  Camera,
+} from "lucide-react";
+import Link from "next/link";
 
 export default function Profile() {
-  const [isEditing, setIsEditing] = useState(false)
+  const [isEditing, setIsEditing] = useState(false);
   const [profile, setProfile] = useState({
     name: "Alex Chen",
     email: "alex.chen@cyberwatch.com",
@@ -20,27 +34,31 @@ export default function Profile() {
     department: "Operations",
     joinDate: "2023-06-15",
     lastLogin: "2024-01-15 14:30",
-  })
+  });
 
   const handleSave = () => {
     // Handle profile update
-    console.log("Saving profile:", profile)
-    setIsEditing(false)
-  }
+    console.log("Saving profile:", profile);
+    setIsEditing(false);
+  };
 
   const stats = [
     { label: "Cars Monitored", value: "1,247", color: "cyan" },
     { label: "Alerts Sent", value: "156", color: "green" },
     { label: "Active Sessions", value: "3", color: "purple" },
     { label: "System Uptime", value: "99.9%", color: "yellow" },
-  ]
+  ];
 
   const recentActivity = [
     { action: "Logged into system", time: "2 hours ago", type: "login" },
-    { action: "Added new vehicle ABC-123", time: "4 hours ago", type: "vehicle" },
+    {
+      action: "Added new vehicle ABC-123",
+      time: "4 hours ago",
+      type: "vehicle",
+    },
     { action: "Sent SMS alert", time: "6 hours ago", type: "alert" },
     { action: "Updated camera settings", time: "1 day ago", type: "system" },
-  ]
+  ];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
@@ -53,7 +71,11 @@ export default function Profile() {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <Link href="/">
-                  <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-cyan-400 hover:text-cyan-300"
+                  >
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back
                   </Button>
@@ -64,7 +86,11 @@ export default function Profile() {
               </div>
               <Button
                 onClick={() => (isEditing ? handleSave() : setIsEditing(true))}
-                className={isEditing ? "bg-green-500 hover:bg-green-600" : "bg-cyan-500 hover:bg-cyan-600"}
+                className={
+                  isEditing
+                    ? "bg-green-500 hover:bg-green-600"
+                    : "bg-cyan-500 hover:bg-cyan-600"
+                }
               >
                 {isEditing ? (
                   <>
@@ -112,8 +138,12 @@ export default function Profile() {
                       )}
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-white mb-1">{profile.name}</h2>
-                      <p className="text-purple-400 font-medium">{profile.role}</p>
+                      <h2 className="text-2xl font-bold text-white mb-1">
+                        {profile.name}
+                      </h2>
+                      <p className="text-purple-400 font-medium">
+                        {profile.role}
+                      </p>
                       <p className="text-gray-400">{profile.department}</p>
                     </div>
                   </div>
@@ -126,7 +156,12 @@ export default function Profile() {
                       <Input
                         id="name"
                         value={profile.name}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) =>
+                          setProfile((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
                         disabled={!isEditing}
                         className="bg-gray-800 border-gray-700 text-white disabled:opacity-60"
                       />
@@ -140,7 +175,12 @@ export default function Profile() {
                         id="email"
                         type="email"
                         value={profile.email}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, email: e.target.value }))}
+                        onChange={(e) =>
+                          setProfile((prev) => ({
+                            ...prev,
+                            email: e.target.value,
+                          }))
+                        }
                         disabled={!isEditing}
                         className="bg-gray-800 border-gray-700 text-white disabled:opacity-60"
                       />
@@ -154,7 +194,12 @@ export default function Profile() {
                         id="phone"
                         type="tel"
                         value={profile.phone}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))}
+                        onChange={(e) =>
+                          setProfile((prev) => ({
+                            ...prev,
+                            phone: e.target.value,
+                          }))
+                        }
                         disabled={!isEditing}
                         className="bg-gray-800 border-gray-700 text-white disabled:opacity-60"
                       />
@@ -167,7 +212,12 @@ export default function Profile() {
                       <Input
                         id="department"
                         value={profile.department}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, department: e.target.value }))}
+                        onChange={(e) =>
+                          setProfile((prev) => ({
+                            ...prev,
+                            department: e.target.value,
+                          }))
+                        }
                         disabled={!isEditing}
                         className="bg-gray-800 border-gray-700 text-white disabled:opacity-60"
                       />
@@ -178,7 +228,9 @@ export default function Profile() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-gray-400">Member Since:</span>
-                        <p className="text-white">{new Date(profile.joinDate).toLocaleDateString()}</p>
+                        <p className="text-white">
+                          {new Date(profile.joinDate).toLocaleDateString()}
+                        </p>
                       </div>
                       <div>
                         <span className="text-gray-400">Last Login:</span>
@@ -192,14 +244,25 @@ export default function Profile() {
               {/* Activity Stats */}
               <Card className="bg-gray-900/50 border-purple-500/30">
                 <CardHeader>
-                  <CardTitle className="text-purple-400">Activity Overview</CardTitle>
-                  <CardDescription className="text-gray-400">Your system usage statistics</CardDescription>
+                  <CardTitle className="text-purple-400">
+                    Activity Overview
+                  </CardTitle>
+                  <CardDescription className="text-gray-400">
+                    Your system usage statistics
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                     {stats.map((stat, index) => (
-                      <div key={index} className="text-center p-4 rounded-lg bg-gray-800/50 border border-gray-700/50">
-                        <p className={`text-2xl font-bold text-${stat.color}-400 mb-1`}>{stat.value}</p>
+                      <div
+                        key={index}
+                        className="text-center p-4 rounded-lg bg-gray-800/50 border border-gray-700/50"
+                      >
+                        <p
+                          className={`text-2xl font-bold text-${stat.color}-400 mb-1`}
+                        >
+                          {stat.value}
+                        </p>
                         <p className="text-gray-400 text-sm">{stat.label}</p>
                       </div>
                     ))}
@@ -222,15 +285,21 @@ export default function Profile() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400">Account Type</span>
-                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Administrator</Badge>
+                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                        Administrator
+                      </Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400">Status</span>
-                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Active</Badge>
+                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                        Active
+                      </Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400">2FA Enabled</span>
-                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Yes</Badge>
+                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">
+                        Yes
+                      </Badge>
                     </div>
                   </div>
                 </CardContent>
@@ -239,26 +308,35 @@ export default function Profile() {
               {/* Recent Activity */}
               <Card className="bg-gray-900/50 border-cyan-500/30">
                 <CardHeader>
-                  <CardTitle className="text-cyan-400">Recent Activity</CardTitle>
+                  <CardTitle className="text-cyan-400">
+                    Recent Activity
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     {recentActivity.map((activity, index) => (
-                      <div key={index} className="flex items-start space-x-3 p-3 rounded-lg bg-gray-800/50">
+                      <div
+                        key={index}
+                        className="flex items-start space-x-3 p-3 rounded-lg bg-gray-800/50"
+                      >
                         <div
                           className={`w-2 h-2 rounded-full mt-2 ${
                             activity.type === "login"
                               ? "bg-green-400"
                               : activity.type === "vehicle"
-                                ? "bg-cyan-400"
-                                : activity.type === "alert"
-                                  ? "bg-yellow-400"
-                                  : "bg-purple-400"
+                              ? "bg-cyan-400"
+                              : activity.type === "alert"
+                              ? "bg-yellow-400"
+                              : "bg-purple-400"
                           }`}
                         />
                         <div className="flex-1">
-                          <p className="text-white text-sm">{activity.action}</p>
-                          <p className="text-gray-400 text-xs">{activity.time}</p>
+                          <p className="text-white text-sm">
+                            {activity.action}
+                          </p>
+                          <p className="text-gray-400 text-xs">
+                            {activity.time}
+                          </p>
                         </div>
                       </div>
                     ))}
@@ -269,7 +347,9 @@ export default function Profile() {
               {/* Quick Actions */}
               <Card className="bg-gray-900/50 border-purple-500/30">
                 <CardHeader>
-                  <CardTitle className="text-purple-400">Quick Actions</CardTitle>
+                  <CardTitle className="text-purple-400">
+                    Quick Actions
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -302,5 +382,5 @@ export default function Profile() {
         </div>
       </div>
     </div>
-  )
+  );
 }

@@ -19,7 +19,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter } from "next/navigation";
 
-export default function Login() {
+export default function LoginLoginForm(){
   const [showPassword, setShowPassword] = useState(false);
   const [formData, setFormData] = useState({
     email: "",
@@ -39,7 +39,6 @@ export default function Login() {
     const email = formData.email;
     const password = formData.password;
 
-    
     try {
       const { error } = await supabase.auth.signInWithPassword({
         email,
@@ -53,8 +52,7 @@ export default function Login() {
     } finally {
       setIsLoading(false);
     }
-    // Handle login
-    console.log("Login attempt:", formData);
+    
   };
 
   return (
@@ -159,19 +157,21 @@ export default function Login() {
                   Forgot password?
                 </Link>
               </div>
+              {error && <p className="text-sm text-red-500">{error}</p>}
 
               <Button
                 type="submit"
                 className="w-full bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600"
+                disabled={isLoading}
               >
-                Sign In
+                {isLoading ? "Signing you in..." : "Sign In"}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </form>
 
             <div className="mt-6 text-center">
               <p className="text-gray-400">
-                Don't have an account?{" "}
+                Don`&apos;`t have an account?{" "}
                 <Link
                   href="/auth/signup"
                   className="text-cyan-400 hover:text-cyan-300 font-medium"

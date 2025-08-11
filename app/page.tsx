@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import type { ComponentType } from "react";
 import {
   Card,
   CardContent,
@@ -8,95 +8,91 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import {
-  Car,
-  Users,
-  Camera,
-  MessageSquare,
-  Activity,
-  Zap,
-  LogOut,
-} from "lucide-react";
-import { AuthModal } from "@/components/AuthModal";
-import { useAuth } from "@/contexts/AuthContext";
+import { Car, Users, Camera, MessageSquare, Activity, Zap } from "lucide-react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { redirect } from "next/navigation";
 
-export default async function Dashboard() {
-  const supabase = await createClient();
-  const { user, signOut, loading } = useAuth();
+export default function Dashboard() {
+  const [isUserAuthenticated, setIsUserAuthenticated] = useState(false);
   const [stats, setStats] = useState({
     totalCars: 0,
     totalUsers: 0,
     activeCameras: 0,
     smsCount: 0,
   });
-  const [authModalOpen, setAuthModalOpen] = useState(false);
-
-  const { data, error } = await supabase.auth.getClaims();
-  if (error || !data?.claims) {
-    redirect("/auth/login");
-  }
+  const supabase = createClient();
 
   useEffect(() => {
+
+    const getUser = async () => {
+      try {
+        const { data } = await supabase.auth.getClaims();
+        const user = data?.claims;
+        if (user) {
+          setIsUserAuthenticated(true);
+        }
+      } catch (error) {
+        console.error("Error fetching user claims:", error);
+      }
+    };
+
+    getUser();
+
     // Simulate loading stats
-    const timer = setTimeout(() => {
-      setStats({
-        totalCars: 1247,
-        totalUsers: 89,
-        activeCameras: 4,
-        smsCount: 156,
-      });
-    }, 1000);
+   const timer: NodeJS.Timeout = setTimeout(() => {
+     setStats({
+       totalCars: 1247,
+       totalUsers: 89,
+       activeCameras: 4,
+       smsCount: 156,
+     });
+   }, 1000);
     return () => clearTimeout(timer);
   }, []);
 
-  const handleProtectedAction = (action: () => void) => {
-    if (!user) {
-      setAuthModalOpen(true);
-      return;
-    }
-    action();
-  };
+interface StatCardProps {
+  title: string;
+  value: number | string;
+  icon: ComponentType<{ className?: string }>;
+  description: string;
+  trend?: string;
+}
 
-  const StatCard = ({ title, value, icon: Icon, description, trend }: any) => (
-    <Card className="bg-gray-900/50 border-cyan-500/30 hover:border-cyan-400/50 transition-all duration-300 group">
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-gray-300">
-          {title}
-        </CardTitle>
-        <Icon className="h-4 w-4 text-cyan-400 group-hover:text-cyan-300 transition-colors" />
-      </CardHeader>
-      <CardContent>
-        <div className="text-2xl font-bold text-white mb-1">
-          {value.toLocaleString()}
-        </div>
-        <p className="text-xs text-gray-400">{description}</p>
-        {trend && (
-          <Badge
-            variant="secondary"
-            className="mt-2 bg-green-500/20 text-green-400 border-green-500/30"
-          >
-            {trend}
-          </Badge>
-        )}
-      </CardContent>
-    </Card>
-  );
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
-        <div className="text-center">
-          <Zap className="h-12 w-12 text-cyan-400 mx-auto mb-4 animate-pulse" />
-          <p className="text-gray-400">Loading CyberWatch...</p>
-        </div>
+const StatCard = ({
+  title,
+  value,
+  icon: Icon,
+  description,
+  trend,
+}: StatCardProps) => (
+  <Card className="bg-gray-900/50 border-cyan-500/30 hover:border-cyan-400/50 transition-all duration-300 group">
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium text-gray-300">
+        {title}
+      </CardTitle>
+      <Icon className="h-4 w-4 text-cyan-400 group-hover:text-cyan-300 transition-colors" />
+    </CardHeader>
+    <CardContent>
+      <div className="text-2xl font-bold text-white mb-1">
+        {typeof value === "number" ? value.toLocaleString() : value}
       </div>
-    );
-  }
+      <p className="text-xs text-gray-400">{description}</p>
+      {trend && (
+        <Badge
+          variant="secondary"
+          className="mt-2 bg-green-500/20 text-green-400 border-green-500/30"
+        >
+          {trend}
+        </Badge>
+      )}
+    </CardContent>
+  </Card>
+);
+
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
@@ -115,69 +111,37 @@ export default async function Dashboard() {
                 </h1>
               </div>
               <nav className="hidden md:flex items-center space-x-6">
-                <button
-                  onClick={() =>
-                    handleProtectedAction(
-                      () => (window.location.href = "/camera")
-                    )
-                  }
+                <Link
+                  href="/camera"
                   className="text-gray-300 hover:text-cyan-400 transition-colors"
                 >
                   Live Feed
-                </button>
-                <button
-                  onClick={() =>
-                    handleProtectedAction(
-                      () => (window.location.href = "/cars")
-                    )
-                  }
+                </Link>
+                <Link
+                  href="/cars"
                   className="text-gray-300 hover:text-cyan-400 transition-colors"
                 >
                   Car Registry
-                </button>
-                <button
-                  onClick={() =>
-                    handleProtectedAction(() => (window.location.href = "/sms"))
-                  }
+                </Link>
+                <Link
+                  href="/sms"
                   className="text-gray-300 hover:text-cyan-400 transition-colors"
                 >
                   SMS Center
-                </button>
-                {user && (
-                  <Link
-                    href="/profile"
-                    className="text-gray-300 hover:text-cyan-400 transition-colors"
-                  >
-                    Profile
-                  </Link>
-                )}
+                </Link>
+                <Link
+                  href="/profile"
+                  className="text-gray-300 hover:text-cyan-400 transition-colors"
+                >
+                  Profile
+                </Link>
               </nav>
-              <div className="flex items-center space-x-2">
-                {user ? (
-                  <div className="flex items-center space-x-3">
-                    <span className="text-sm text-gray-300">
-                      Welcome, {user.user_metadata?.first_name || user.email}
-                    </span>
-                    <Button
-                      onClick={signOut}
-                      variant="outline"
-                      size="sm"
-                      className="border-red-500/50 text-red-400 hover:bg-red-500/10 bg-transparent"
-                    >
-                      <LogOut className="h-4 w-4 mr-2" />
-                      Logout
-                    </Button>
-                  </div>
-                ) : (
-                  <Button
-                    onClick={() => setAuthModalOpen(true)}
-                    variant="outline"
-                    className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
-                  >
-                    Login
-                  </Button>
-                )}
-              </div>
+              <Button
+                variant="outline"
+                className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
+              >
+                {!isUserAuthenticated && <Link href="/auth/login">Login</Link>}
+              </Button>
             </div>
           </div>
         </header>
@@ -198,25 +162,19 @@ export default async function Dashboard() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 size="lg"
-                onClick={() =>
-                  handleProtectedAction(
-                    () => (window.location.href = "/camera")
-                  )
-                }
                 className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600"
               >
-                <Camera className="mr-2 h-5 w-5" />
-                Start Monitoring
+                <Link href="/camera" className="flex items-center">
+                  <Camera className="mr-2 h-5 w-5" />
+                  Start Monitoring
+                </Link>
               </Button>
               <Button
                 size="lg"
                 variant="outline"
-                onClick={() =>
-                  handleProtectedAction(() => (window.location.href = "/cars"))
-                }
                 className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
               >
-                View Database
+                <Link href="/cars">View Database</Link>
               </Button>
             </div>
           </div>
@@ -266,15 +224,8 @@ export default async function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button
-                  onClick={() =>
-                    handleProtectedAction(
-                      () => (window.location.href = "/camera")
-                    )
-                  }
-                  className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/50"
-                >
-                  Access Feed
+                <Button className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/50">
+                  <Link href="/camera">Access Feed</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -290,15 +241,8 @@ export default async function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button
-                  onClick={() =>
-                    handleProtectedAction(
-                      () => (window.location.href = "/cars/register")
-                    )
-                  }
-                  className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50"
-                >
-                  Register Car
+                <Button className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50">
+                  <Link href="/cars/register">Register Car</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -314,13 +258,8 @@ export default async function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button
-                  onClick={() =>
-                    handleProtectedAction(() => (window.location.href = "/sms"))
-                  }
-                  className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/50"
-                >
-                  SMS Center
+                <Button className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/50">
+                  <Link href="/sms">SMS Center</Link>
                 </Button>
               </CardContent>
             </Card>
@@ -397,51 +336,6 @@ export default async function Dashboard() {
           </Card>
         </main>
       </div>
-
-      <AuthModal
-        isOpen={authModalOpen}
-        onClose={() => setAuthModalOpen(false)}
-        onSuccess={() => {
-          // Refresh the page or update state as needed
-          window.location.reload();
-        }}
-      />
     </div>
   );
 }
-// import { redirect } from "next/navigation";
-
-// import { createClient } from "@/lib/supabase/server";
-// import { InfoIcon } from "lucide-react";
-// import { FetchDataSteps } from "@/components/tutorial/fetch-data-steps";
-
-// export default async function ProtectedPage() {
-//   const supabase = await createClient();
-
-//   const { data, error } = await supabase.auth.getClaims();
-//   if (error || !data?.claims) {
-//     redirect("/auth/login");
-//   }
-
-//   return (
-//     <div className="flex-1 w-full flex flex-col gap-12">
-//       <div className="w-full">
-//         <div className="bg-accent text-sm p-3 px-5 rounded-md text-foreground flex gap-3 items-center">
-//           <InfoIcon size="16" strokeWidth={2} />
-//           This is a protected page that you can only see as an authenticated
-//           user
-//         </div>
-//       </div>
-//       <div className="flex flex-col gap-2 items-start">
-//         <h2 className="font-bold text-2xl mb-4">Your user details</h2>
-//         <pre className="text-xs font-mono p-3 rounded border max-h-32 overflow-auto">
-//           {JSON.stringify(data.claims, null, 2)}
-//         </pre>
-//       </div>
-//       <div>
-//         <h2 className="font-bold text-2xl mb-4">Next steps</h2>
-//         <FetchDataSteps />
-//       </div>
-//     </div>
-//   );
-// }

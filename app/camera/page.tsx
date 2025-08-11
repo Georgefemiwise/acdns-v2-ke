@@ -25,7 +25,7 @@ export default function CameraFeed() {
   const { user, loading } = useAuth()
   const [selectedCamera, setSelectedCamera] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
-  const [detectedCars, setDetectedCars] = useState<any[]>([])
+  const [detectedCars, setDetectedCars] = useState<string[]>([])
   const [authModalOpen, setAuthModalOpen] = useState(false)
   const videoRef = useRef<HTMLVideoElement>(null)
 
@@ -190,7 +190,7 @@ export default function CameraFeed() {
     return () => clearInterval(healthCheck)
   }, [isStreaming, selectedCamera, cameras, user])
 
-  if (loading) {
+  if (loading || isLoadingCameras) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
         <div className="text-center">
@@ -198,7 +198,7 @@ export default function CameraFeed() {
           <p className="text-gray-400">Loading camera system...</p>
         </div>
       </div>
-    )
+    );
   }
 
   if (!user) {
