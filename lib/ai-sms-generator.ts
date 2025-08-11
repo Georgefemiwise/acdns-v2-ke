@@ -37,7 +37,7 @@ export interface GeneratedSmsMessage {
 }
 
 // Predefined message templates for different scenarios
-const MESSAGE_TEMPLATES = {
+const MESSAGE_TEMPLATES: Record<string, Record<string, string>> = {
   detection: {
     professional:
       "Vehicle detection alert: {vehicleLicense} detected at {cameraLocation} on {detectionTime}. Confidence: {confidenceScore}%. Contact security if unauthorized.",
@@ -75,13 +75,20 @@ const MESSAGE_TEMPLATES = {
 }
 
 export class AiSmsGenerator {
-  private model = openai("gpt-4o-mini")
+  private model = openai("gpt-4o-mini", {
+    apiKey: process.env.OPENAI_API_KEY,
+  })
 
   /**
    * Generate an AI-powered SMS message with placeholders
    */
   async generateMessage(options: SmsGenerationOptions): Promise<GeneratedSmsMessage> {
     try {
+      if (!process.env.OPENAI_API_KEY) {
+        console.warn('OpenAI API key not found, falling back to template')
+        return this.generateTemplateMessage(options)
+      }
+
       const prompt = this.buildPrompt(options)
 
       const { text } = await generateText({
@@ -121,7 +128,7 @@ export class AiSmsGenerator {
   private buildPrompt(options: SmsGenerationOptions): string {
     const { messageType, tone, length, includeEmoji, placeholders } = options
 
-    const lengthGuide = {
+    const lengthGuide: Record<string, string> = {
       short: "50-80 characters",
       medium: "80-120 characters",
       long: "120-160 characters",
