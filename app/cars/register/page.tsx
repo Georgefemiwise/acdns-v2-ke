@@ -9,16 +9,19 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Car, ArrowLeft, Save, CheckCircle, AlertCircle } from "lucide-react"
+import { Car, ArrowLeft, Save, CheckCircle, AlertCircle, MessageSquare, Zap, FileText } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
+import { sendCarRegistrationSms, smsService } from "@/lib/sms-service"
+import { generateWelcomeMessage, aiSmsGenerator } from "@/lib/ai-sms-generator"
 
 export default function RegisterCar() {
   const { user } = useAuth()
   const router = useRouter()
   const [loading, setLoading] = useState(false)
+  const [sendingSms, setSendingSms] = useState(false)
   const [message, setMessage] = useState({ type: "", text: "" })
 
   const [formData, setFormData] = useState({
@@ -45,51 +48,113 @@ export default function RegisterCar() {
     setMessage({ type: "", text: "" })
 
     try {
-      const { error } = await supabase.from("vehicles").insert({
-        license_plate: formData.license.toUpperCase(),
-        make: formData.make,
-        model: formData.model,
-        year: Number.parseInt(formData.year),
-        color: formData.color,
-        owner_name: formData.ownerName,
-        owner_phone: formData.ownerPhone,
-        owner_email: formData.ownerEmail,
-        notes: formData.notes || null,
-        created_by: user.id,
-        status: "active",
-      })
+      // Insert vehicle into database
+      const { data: vehicleData, error: vehicleError } = await supabase
+        .from("vehicles")
+        .insert({
+          license_plate: formData.license.toUpperCase(),
+          make: formData.make,
+          model: formData.model,
+          year: Number.parseInt(formData.year),
+          color: formData.color,
+          owner_name: formData.ownerName,
+          owner_phone: formData.ownerPhone,
+          owner_email: formData.ownerEmail,
+          notes: formData.notes || null,
+          created_by: user.id,
+          status: "active",
+        })
+        .select()
+        .single()
 
-      if (error) {
-        if (error.code === "23505") {
+      if (vehicleError) {
+        if (vehicleError.code === "23505") {
           setMessage({ type: "error", text: "A vehicle with this license plate already exists" })
         } else {
-          setMessage({ type: "error", text: `Failed to register vehicle: ${error.message}` })
+          setMessage({ type: "error", text: `Failed to register vehicle: ${vehicleError.message}` })
         }
-      } else {
-        setMessage({ type: "success", text: "Vehicle registered successfully!" })
-        // Reset form
-        setFormData({
-          license: "",
-          make: "",
-          model: "",
-          year: "",
-          color: "",
-          ownerName: "",
-          ownerPhone: "",
-          ownerEmail: "",
-          notes: "",
-        })
-
-        // Redirect after 2 seconds
-        setTimeout(() => {
-          router.push("/cars")
-        }, 2000)
+        return
       }
+
+      // Vehicle registered successfully, now send SMS via Arkesel
+      setSendingSms(true)
+      const messageGenType = aiSmsGenerator.isAiAvailable() ? "AI" : "template"
+      setMessage({
+        type: "success",
+        text: `Vehicle registered successfully! Generating ${messageGenType}-based welcome SMS via ${smsService.getProviderName()}...`,
+      })
+
+      try {
+        // Generate welcome message (will use templates if OpenAI not available)
+        const aiWelcomeMessage = await generateWelcomeMessage(
+          formData.ownerName,
+          formData.license.toUpperCase(),
+          formData.make,
+          formData.model,
+        )
+
+        // Send SMS using Arkesel SMS service
+        const smsResult = await sendCarRegistrationSms(
+          formData.ownerName,
+          formData.ownerPhone,
+          formData.license.toUpperCase(),
+          formData.make,
+          formData.model,
+        )
+
+        if (smsResult.success) {
+          // Log SMS in database
+          await supabase.from("sms_messages").insert({
+            message_content: aiWelcomeMessage,
+            message_type: "car_registration",
+            recipients_count: 1,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            related_vehicle_id: vehicleData?.id,
+            sent_by: user.id,
+          })
+
+          setMessage({
+            type: "success",
+            text: `🎉 Vehicle registered and ${messageGenType}-generated welcome SMS sent via ${smsResult.provider} to ${formData.ownerName}! Message ID: ${smsResult.messageId}`,
+          })
+        } else {
+          setMessage({
+            type: "success",
+            text: `Vehicle registered successfully! Arkesel SMS failed: ${smsResult.error}`,
+          })
+        }
+      } catch (smsError) {
+        console.error("SMS sending failed:", smsError)
+        setMessage({
+          type: "success",
+          text: "Vehicle registered successfully! SMS sending failed - using fallback message generation.",
+        })
+      }
+
+      // Reset form
+      setFormData({
+        license: "",
+        make: "",
+        model: "",
+        year: "",
+        color: "",
+        ownerName: "",
+        ownerPhone: "",
+        ownerEmail: "",
+        notes: "",
+      })
+
+      // Redirect after 3 seconds
+      setTimeout(() => {
+        router.push("/cars")
+      }, 3000)
     } catch (error) {
       console.error("Error registering vehicle:", error)
       setMessage({ type: "error", text: "An unexpected error occurred" })
     } finally {
       setLoading(false)
+      setSendingSms(false)
     }
   }
 
@@ -115,6 +180,25 @@ export default function RegisterCar() {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
                 Register New Vehicle
               </h1>
+              <div className="ml-auto flex items-center space-x-2">
+                <span className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded flex items-center">
+                  <MessageSquare className="h-3 w-3 mr-1" />
+                  SMS: {smsService.getProviderName()}
+                </span>
+                <span className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded flex items-center">
+                  {aiSmsGenerator.isAiAvailable() ? (
+                    <>
+                      <Zap className="h-3 w-3 mr-1 text-yellow-400" />
+                      AI Messages
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-3 w-3 mr-1 text-blue-400" />
+                      Template Messages
+                    </>
+                  )}
+                </span>
+              </div>
             </div>
           </div>
         </header>
@@ -139,6 +223,28 @@ export default function RegisterCar() {
               </div>
             )}
 
+            {/* SMS Sending Status */}
+            {sendingSms && (
+              <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-purple-500/10 border-purple-500/30 text-purple-400">
+                <MessageSquare className="h-4 w-4 flex-shrink-0 animate-pulse" />
+                <span>
+                  Generating {aiSmsGenerator.isAiAvailable() ? "AI-powered" : "template-based"} welcome SMS via
+                  Arkesel...
+                </span>
+              </div>
+            )}
+
+            {/* AI Status Info */}
+            {!aiSmsGenerator.isAiAvailable() && (
+              <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-blue-500/10 border-blue-500/30 text-blue-400">
+                <FileText className="h-4 w-4 flex-shrink-0" />
+                <span>
+                  Using template-based SMS messages. Add OPENAI_API_KEY environment variable to enable AI-generated
+                  messages.
+                </span>
+              </div>
+            )}
+
             <Card className="bg-gray-900/50 border-cyan-500/30">
               <CardHeader>
                 <CardTitle className="text-cyan-400 flex items-center">
@@ -146,7 +252,8 @@ export default function RegisterCar() {
                   Vehicle Information
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Enter the vehicle and owner details for the car detection system
+                  Enter the vehicle and owner details. Owner will receive an instant SMS confirmation via Arkesel! 📱
+                  {aiSmsGenerator.isAiAvailable() ? " (AI-generated messages)" : " (Template-based messages)"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -274,18 +381,22 @@ export default function RegisterCar() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="ownerPhone" className="text-gray-300">
-                          Phone Number *
+                          Phone Number * (for Arkesel SMS)
                         </Label>
                         <Input
                           id="ownerPhone"
                           type="tel"
-                          placeholder="+1-555-0123"
+                          placeholder="0241234567 or +233241234567"
                           value={formData.ownerPhone}
                           onChange={(e) => handleInputChange("ownerPhone", e.target.value)}
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
                           disabled={loading}
                         />
+                        <p className="text-xs text-gray-500">
+                          📱 Owner will receive instant{" "}
+                          {aiSmsGenerator.isAiAvailable() ? "AI-generated" : "template-based"} SMS via Arkesel
+                        </p>
                       </div>
 
                       <div className="space-y-2">
@@ -333,7 +444,7 @@ export default function RegisterCar() {
                       <Button
                         variant="outline"
                         className="border-gray-600 text-gray-400 hover:bg-gray-800 bg-transparent"
-                        disabled={loading}
+                        disabled={loading || sendingSms}
                       >
                         Cancel
                       </Button>
@@ -341,10 +452,24 @@ export default function RegisterCar() {
                     <Button
                       type="submit"
                       className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600"
-                      disabled={loading}
+                      disabled={loading || sendingSms}
                     >
-                      <Save className="h-4 w-4 mr-2" />
-                      {loading ? "Registering..." : "Register Vehicle"}
+                      {sendingSms ? (
+                        <>
+                          <MessageSquare className="h-4 w-4 mr-2 animate-pulse" />
+                          Sending via Arkesel...
+                        </>
+                      ) : loading ? (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Registering...
+                        </>
+                      ) : (
+                        <>
+                          <Save className="h-4 w-4 mr-2" />
+                          Register & Send SMS
+                        </>
+                      )}
                     </Button>
                   </div>
                 </form>

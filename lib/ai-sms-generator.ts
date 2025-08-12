@@ -1,9 +1,7 @@
-import { generateText } from "ai"
-import { openai } from "@ai-sdk/openai"
-
 // =============================================
 // AI SMS MESSAGE GENERATOR
-// Uses OpenAI to create engaging, personalized SMS messages
+// Uses Hugging Face open-source models for SMS generation
+// Falls back to templates if AI is not available
 // =============================================
 
 export interface SmsPlaceholders {
@@ -34,6 +32,7 @@ export interface GeneratedSmsMessage {
   estimatedLength: number
   tone: string
   messageType: string
+  generatedBy: "ai" | "template"
 }
 
 // Predefined message templates for different scenarios
@@ -75,34 +74,60 @@ const MESSAGE_TEMPLATES = {
 }
 
 export class AiSmsGenerator {
-  private model = openai("gpt-4o-mini")
+  private hasHuggingFaceKey: boolean
+
+  constructor() {
+    // Check if Hugging Face API key is available (free tier available)
+    this.hasHuggingFaceKey = !!(process.env.HUGGINGFACE_API_KEY || process.env.NEXT_PUBLIC_HUGGINGFACE_API_KEY)
+
+    if (!this.hasHuggingFaceKey) {
+      console.warn("⚠️ Hugging Face API key not found. SMS generator will use template-based messages.")
+      console.log("💡 Get a free Hugging Face API key at: https://huggingface.co/settings/tokens")
+    } else {
+      console.log("🤖 Using Hugging Face open-source AI for SMS generation")
+    }
+  }
 
   /**
-   * Generate an AI-powered SMS message with placeholders
+   * Generate an AI-powered SMS message using Hugging Face API route
    */
   async generateMessage(options: SmsGenerationOptions): Promise<GeneratedSmsMessage> {
-    try {
-      const prompt = this.buildPrompt(options)
+    // If no Hugging Face key, fall back to templates immediately
+    if (!this.hasHuggingFaceKey) {
+      console.log("📝 Using template-based SMS generation (no Hugging Face key)")
+      return this.generateTemplateMessage(options)
+    }
 
-      const { text } = await generateText({
-        model: this.model,
-        prompt,
-        maxTokens: 150,
-        temperature: 0.7,
+    try {
+      // Call our API route instead of directly calling Hugging Face
+      const response = await fetch("/api/generate-sms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(options),
       })
 
-      const processedMessage = this.processGeneratedMessage(text, options.placeholders)
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`)
+      }
 
-      return {
-        message: processedMessage,
-        placeholders: options.placeholders,
-        estimatedLength: processedMessage.length,
-        tone: options.tone,
-        messageType: options.messageType,
+      const result = await response.json()
+
+      if (result.success) {
+        return {
+          message: result.message,
+          placeholders: options.placeholders,
+          estimatedLength: result.message.length,
+          tone: options.tone,
+          messageType: options.messageType,
+          generatedBy: "ai",
+        }
+      } else {
+        throw new Error(result.error || "API generation failed")
       }
     } catch (error) {
-      console.error("AI SMS generation failed:", error)
-      // Fallback to template-based message
+      console.error("AI SMS generation failed, falling back to templates:", error)
       return this.generateTemplateMessage(options)
     }
   }
@@ -111,93 +136,14 @@ export class AiSmsGenerator {
    * Generate multiple message variations
    */
   async generateVariations(options: SmsGenerationOptions, count = 3): Promise<GeneratedSmsMessage[]> {
+    if (!this.hasHuggingFaceKey) {
+      // Generate template variations by using different tones
+      const tones: Array<"professional" | "friendly" | "urgent" | "casual"> = ["professional", "friendly", "casual"]
+      return tones.slice(0, count).map((tone) => this.generateTemplateMessage({ ...options, tone }))
+    }
+
     const variations = await Promise.all(Array.from({ length: count }, () => this.generateMessage(options)))
     return variations
-  }
-
-  /**
-   * Build AI prompt for message generation
-   */
-  private buildPrompt(options: SmsGenerationOptions): string {
-    const { messageType, tone, length, includeEmoji, placeholders } = options
-
-    const lengthGuide = {
-      short: "50-80 characters",
-      medium: "80-120 characters",
-      long: "120-160 characters",
-    }
-
-    const availablePlaceholders = Object.keys(placeholders)
-      .filter((key) => placeholders[key as keyof SmsPlaceholders])
-      .map((key) => `{${key}}`)
-      .join(", ")
-
-    return `Generate a ${tone} SMS message for a ${messageType} notification.
-
-Requirements:
-- Length: ${lengthGuide[length]}
-- Tone: ${tone}
-- ${includeEmoji ? "Include relevant emojis" : "No emojis"}
-- Use placeholders where appropriate: ${availablePlaceholders}
-- Keep it clear and actionable
-- Suitable for security/monitoring context
-
-Context:
-${this.buildContextFromPlaceholders(placeholders)}
-
-Generate only the message text with placeholders intact.`
-  }
-
-  /**
-   * Build context from available placeholders
-   */
-  private buildContextFromPlaceholders(placeholders: SmsPlaceholders): string {
-    const context = []
-
-    if (placeholders.vehicleLicense) {
-      context.push(`Vehicle: ${placeholders.vehicleLicense}`)
-    }
-    if (placeholders.vehicleMake && placeholders.vehicleModel) {
-      context.push(`Vehicle type: ${placeholders.vehicleMake} ${placeholders.vehicleModel}`)
-    }
-    if (placeholders.ownerName) {
-      context.push(`Owner: ${placeholders.ownerName}`)
-    }
-    if (placeholders.cameraLocation) {
-      context.push(`Location: ${placeholders.cameraLocation}`)
-    }
-    if (placeholders.detectionTime) {
-      context.push(`Time: ${placeholders.detectionTime}`)
-    }
-
-    return context.join("\n")
-  }
-
-  /**
-   * Process generated message to ensure placeholders are preserved
-   */
-  private processGeneratedMessage(message: string, placeholders: SmsPlaceholders): string {
-    let processed = message.trim()
-
-    // Ensure placeholders are in correct format
-    Object.keys(placeholders).forEach((key) => {
-      const value = placeholders[key as keyof SmsPlaceholders]
-      if (value) {
-        // Replace any variations of the placeholder with the standard format
-        const variations = [
-          new RegExp(`\\b${key}\\b`, "gi"),
-          new RegExp(`\\[${key}\\]`, "gi"),
-          new RegExp(`\$$${key}\$$`, "gi"),
-          new RegExp(`<${key}>`, "gi"),
-        ]
-
-        variations.forEach((regex) => {
-          processed = processed.replace(regex, `{${key}}`)
-        })
-      }
-    })
-
-    return processed
   }
 
   /**
@@ -215,6 +161,7 @@ Generate only the message text with placeholders intact.`
       estimatedLength: template.length,
       tone: options.tone,
       messageType: options.messageType,
+      generatedBy: "template",
     }
   }
 
@@ -256,6 +203,20 @@ Generate only the message text with placeholders intact.`
    */
   static getMessagePreview(message: string, placeholders: SmsPlaceholders): string {
     return this.replacePlaceholders(message, placeholders)
+  }
+
+  /**
+   * Check if AI generation is available
+   */
+  isAiAvailable(): boolean {
+    return this.hasHuggingFaceKey
+  }
+
+  /**
+   * Get the AI provider name
+   */
+  getProviderName(): string {
+    return this.hasHuggingFaceKey ? "Hugging Face (Open Source)" : "Templates"
   }
 }
 
@@ -319,6 +280,45 @@ export async function generateWelcomeMessage(
     placeholders,
   }
 
-  const generated = await aiSmsGenerator.generateMessage(options)
-  return AiSmsGenerator.replacePlaceholders(generated.message, placeholders)
+  try {
+    const generated = await aiSmsGenerator.generateMessage(options)
+    const finalMessage = AiSmsGenerator.replacePlaceholders(generated.message, placeholders)
+
+    console.log(`📱 Generated ${generated.generatedBy === "ai" ? "AI" : "template"}-based welcome message`)
+    return finalMessage
+  } catch (error) {
+    console.error("Welcome message generation failed:", error)
+    // Ultimate fallback
+    return `🚗 Hi ${ownerName}! Your ${vehicleMake} ${vehicleModel} (${licensePlate}) has been successfully registered with CyberWatch Security System. Welcome aboard! 🎉`
+  }
+}
+
+/**
+ * Generate SMS recipient welcome message
+ */
+export async function generateRecipientWelcomeMessage(recipientName: string): Promise<string> {
+  const placeholders: SmsPlaceholders = {
+    ownerName: recipientName,
+    systemName: "CyberWatch",
+  }
+
+  const options: SmsGenerationOptions = {
+    messageType: "welcome",
+    tone: "friendly",
+    length: "short",
+    includeEmoji: true,
+    placeholders,
+  }
+
+  try {
+    const generated = await aiSmsGenerator.generateMessage(options)
+    const finalMessage = AiSmsGenerator.replacePlaceholders(generated.message, placeholders)
+
+    console.log(`📱 Generated ${generated.generatedBy === "ai" ? "AI" : "template"}-based recipient welcome`)
+    return finalMessage
+  } catch (error) {
+    console.error("Recipient welcome message generation failed:", error)
+    // Ultimate fallback
+    return `👋 Welcome ${recipientName}! You've been added to CyberWatch SMS notifications. Stay secure with Arkesel! 🔒✨`
+  }
 }

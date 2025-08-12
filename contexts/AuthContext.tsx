@@ -121,44 +121,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (error) {
         console.error("Error fetching user profile:", error)
 
-        // If profile doesn't exist, create a basic one from auth user
-        if (error.code === "PGRST116" || error.message.includes("table") || error.message.includes("does not exist")) {
-          console.log("Profile not found or table missing, creating basic profile from auth data")
-
-          try {
-            // Get user data from auth
-            const {
-              data: { user },
-            } = await supabase.auth.getUser()
-
-            if (user) {
-              // Create a basic profile object from auth metadata
-              const basicProfile = {
-                id: user.id,
-                email: user.email || "",
-                first_name: user.user_metadata?.first_name || user.email?.split("@")[0] || "User",
-                last_name: user.user_metadata?.last_name || "",
-                phone: user.user_metadata?.phone || "",
-                department: user.user_metadata?.department || "",
-                role: "operator",
-                avatar_url: user.user_metadata?.avatar_url || "",
-                is_active: true,
-                created_at: user.created_at || new Date().toISOString(),
-                updated_at: new Date().toISOString(),
-              }
-
-              setProfile(basicProfile)
-              console.log("Using basic profile from auth metadata")
-            } else {
-              console.error("No auth user found")
-              setProfile(null)
-            }
-          } catch (authError) {
-            console.error("Error getting auth user:", authError)
-            setProfile(null)
-          }
+        // If profile doesn't exist, create one
+        if (error.code === "PGRST116") {
+          console.log("Profile not found, creating from auth data")
+          await createUserProfile(userId)
         } else {
-          // Other database errors
           console.error("Database error:", error)
           setProfile(null)
         }
@@ -168,39 +135,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     } catch (error) {
       console.error("Unexpected error fetching user profile:", error)
-
-      // Fallback: create basic profile from auth user
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser()
-        if (user) {
-          const fallbackProfile = {
-            id: user.id,
-            email: user.email || "",
-            first_name: user.user_metadata?.first_name || user.email?.split("@")[0] || "User",
-            last_name: user.user_metadata?.last_name || "",
-            phone: "",
-            department: "",
-            role: "operator",
-            avatar_url: "",
-            is_active: true,
-            created_at: user.created_at || new Date().toISOString(),
-            updated_at: new Date().toISOString(),
-          }
-          setProfile(fallbackProfile)
-          console.log("Using fallback profile")
-        } else {
-          setProfile(null)
-        }
-      } catch (fallbackError) {
-        console.error("Fallback profile creation failed:", fallbackError)
-        setProfile(null)
-      }
+      setProfile(null)
     } finally {
-      // GUARANTEE that loading is set to false
       console.log("Setting loading to false")
       setLoading(false)
+    }
+  }
+
+  const createUserProfile = async (userId: string) => {
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser()
+
+      if (user) {
+        const profileData = {
+          id: user.id,
+          email: user.email!,
+          first_name: user.user_metadata?.first_name || user.email?.split("@")[0] || "User",
+          last_name: user.user_metadata?.last_name || "",
+          phone: user.user_metadata?.phone || "",
+          department: user.user_metadata?.department || "",
+          role: "operator",
+          is_active: true,
+        }
+
+        const { data, error } = await supabase.from("users").insert(profileData).select().single()
+
+        if (error) {
+          console.error("Error creating user profile:", error)
+          // Create fallback profile
+          setProfile({
+            ...profileData,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          })
+        } else {
+          console.log("Profile created successfully:", data)
+          setProfile(data)
+        }
+      }
+    } catch (error) {
+      console.error("Error creating user profile:", error)
     }
   }
 
@@ -232,6 +208,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           data: {
             first_name: userData.firstName,
             last_name: userData.lastName,
+            phone: userData.phone,
+            department: userData.department,
+            role: userData.role,
           },
         },
       })
@@ -241,7 +220,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
 
       if (data.user) {
-        // Try to create user profile, but don't fail if table doesn't exist
+        // Try to create user profile
         try {
           const { error: profileError } = await supabase.from("users").insert({
             id: data.user.id,
@@ -256,7 +235,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
           if (profileError) {
             console.error("Error creating user profile:", profileError)
-            // Don't return error here - auth was successful even if profile creation failed
+            // Don't return error here - auth was successful
           }
         } catch (profileError) {
           console.error("Could not create user profile:", profileError)
