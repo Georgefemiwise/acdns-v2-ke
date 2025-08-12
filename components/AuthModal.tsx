@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/contexts/AuthContext"
-import { Eye, EyeOff, Zap, AlertCircle, CheckCircle, Database } from "lucide-react"
+import { Eye, EyeOff, Zap, AlertCircle, CheckCircle, Database, ExternalLink } from "lucide-react"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -138,8 +138,11 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
         setError("An account with this email already exists. Please sign in instead.")
       } else if (error.message.includes("Password should be at least 6 characters")) {
         setError("Password must be at least 6 characters long")
-      } else if (error.message.includes("table") && error.message.includes("does not exist")) {
-        setError("Database setup required. Please run the database setup script first.")
+      } else if (
+        error.message.includes("violates row-level security policy") ||
+        error.message.includes("permission denied")
+      ) {
+        setError("Database setup required. Please run the RLS policy setup script first.")
         setShowDatabaseSetup(true)
       } else {
         setError(error.message)
@@ -222,15 +225,27 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               <span className="text-blue-400 font-medium">Database Setup Required</span>
             </div>
             <p className="text-sm text-gray-300 mb-3">
-              The database tables need to be created. Please run the setup script in your Supabase SQL Editor.
+              The database RLS policies need to be updated. Please run the fix-rls-policies.sql script in your Supabase
+              SQL Editor.
             </p>
-            <Button
-              onClick={() => window.open("https://supabase.com/dashboard/project/_/sql", "_blank")}
-              size="sm"
-              className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/50"
-            >
-              Open Supabase SQL Editor
-            </Button>
+            <div className="flex space-x-2">
+              <Button
+                onClick={() => window.open("https://supabase.com/dashboard/project/_/sql", "_blank")}
+                size="sm"
+                className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/50"
+              >
+                <ExternalLink className="h-3 w-3 mr-1" />
+                Open SQL Editor
+              </Button>
+              <Button
+                onClick={() => setShowDatabaseSetup(false)}
+                size="sm"
+                variant="outline"
+                className="border-gray-600 text-gray-400 hover:bg-gray-800 bg-transparent"
+              >
+                Dismiss
+              </Button>
+            </div>
           </div>
         )}
 
