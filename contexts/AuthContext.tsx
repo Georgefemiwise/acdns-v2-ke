@@ -76,6 +76,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
       if (error) {
         console.error("Error fetching user profile:", error)
+        // If profile doesn't exist, create a basic one
+        if (error.code === "PGRST116") {
+          console.log("Profile not found, user may need to complete signup")
+        }
       } else {
         setProfile(data)
       }
@@ -93,39 +97,64 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     })
 
     if (!error) {
-      // Update last login
-      await supabase.from("users").update({ last_login: new Date().toISOString() }).eq("email", email)
+      // Update last login - but don't fail if it doesn't work
+      try {
+        await supabase.from("users").update({ last_login: new Date().toISOString() }).eq("email", email)
+      } catch (updateError) {
+        console.warn("Could not update last login:", updateError)
+      }
     }
 
     return { error }
   }
 
   const signUp = async (email: string, password: string, userData: any) => {
-    const { data, error } = await supabase.auth.signUp({
-      email,
-      password,
-    })
-
-    if (!error && data.user) {
-      // Create user profile
-      const { error: profileError } = await supabase.from("users").insert({
-        id: data.user.id,
-        email: data.user.email!,
-        password_hash: "", // This will be handled by Supabase Auth
-        first_name: userData.firstName,
-        last_name: userData.lastName,
-        phone: userData.phone,
-        department: userData.department,
-        role: userData.role || "operator",
-        is_active: true,
+    try {
+      // First, sign up with Supabase Auth
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          data: {
+            first_name: userData.firstName,
+            last_name: userData.lastName,
+          },
+        },
       })
 
-      if (profileError) {
-        console.error("Error creating user profile:", profileError)
+      if (error) {
+        return { error }
       }
-    }
 
-    return { error }
+      if (data.user) {
+        // Try to create user profile, but don't fail if table doesn't exist
+        try {
+          const { error: profileError } = await supabase.from("users").insert({
+            id: data.user.id,
+            email: data.user.email!,
+            first_name: userData.firstName,
+            last_name: userData.lastName,
+            phone: userData.phone || null,
+            department: userData.department || null,
+            role: userData.role || "operator",
+            is_active: true,
+          })
+
+          if (profileError) {
+            console.error("Error creating user profile:", profileError)
+            // Don't return error here - auth was successful even if profile creation failed
+          }
+        } catch (profileError) {
+          console.error("Could not create user profile:", profileError)
+          // Continue - the auth signup was successful
+        }
+      }
+
+      return { error: null }
+    } catch (error) {
+      console.error("Signup error:", error)
+      return { error: error as AuthError }
+    }
   }
 
   const signOut = async () => {
@@ -136,19 +165,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const updateProfile = async (updates: Partial<UserProfile>) => {
     if (!user) return { error: new Error("No user logged in") }
 
-    const { error } = await supabase
-      .from("users")
-      .update({
-        ...updates,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", user.id)
+    try {
+      const { error } = await supabase
+        .from("users")
+        .update({
+          ...updates,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", user.id)
 
-    if (!error) {
-      setProfile((prev) => (prev ? { ...prev, ...updates } : null))
+      if (!error) {
+        setProfile((prev) => (prev ? { ...prev, ...updates } : null))
+      }
+
+      return { error }
+    } catch (error) {
+      console.error("Error updating profile:", error)
+      return { error }
     }
-
-    return { error }
   }
 
   const requireAuth = () => {

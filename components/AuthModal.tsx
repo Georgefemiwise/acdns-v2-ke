@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/contexts/AuthContext"
-import { Eye, EyeOff, Zap, AlertCircle, CheckCircle } from "lucide-react"
+import { Eye, EyeOff, Zap, AlertCircle, CheckCircle, Database } from "lucide-react"
 
 interface AuthModalProps {
   isOpen: boolean
@@ -25,6 +25,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
+  const [showDatabaseSetup, setShowDatabaseSetup] = useState(false)
 
   const [loginForm, setLoginForm] = useState({
     email: "",
@@ -122,12 +123,6 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
       return
     }
 
-    if (!signupForm.department || !signupForm.role) {
-      setError("Please select department and role")
-      setLoading(false)
-      return
-    }
-
     const userData = {
       firstName: signupForm.firstName.trim(),
       lastName: signupForm.lastName.trim(),
@@ -143,6 +138,9 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
         setError("An account with this email already exists. Please sign in instead.")
       } else if (error.message.includes("Password should be at least 6 characters")) {
         setError("Password must be at least 6 characters long")
+      } else if (error.message.includes("table") && error.message.includes("does not exist")) {
+        setError("Database setup required. Please run the database setup script first.")
+        setShowDatabaseSetup(true)
       } else {
         setError(error.message)
       }
@@ -180,6 +178,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
     setSuccess("")
     setShowPassword(false)
     setShowConfirmPassword(false)
+    setShowDatabaseSetup(false)
   }
 
   const handleClose = () => {
@@ -216,6 +215,25 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
           </div>
         )}
 
+        {showDatabaseSetup && (
+          <div className="bg-blue-500/10 border border-blue-500/30 rounded p-4">
+            <div className="flex items-center space-x-2 mb-2">
+              <Database className="h-4 w-4 text-blue-400" />
+              <span className="text-blue-400 font-medium">Database Setup Required</span>
+            </div>
+            <p className="text-sm text-gray-300 mb-3">
+              The database tables need to be created. Please run the setup script in your Supabase SQL Editor.
+            </p>
+            <Button
+              onClick={() => window.open("https://supabase.com/dashboard/project/_/sql", "_blank")}
+              size="sm"
+              className="bg-blue-500/20 hover:bg-blue-500/30 text-blue-400 border border-blue-500/50"
+            >
+              Open Supabase SQL Editor
+            </Button>
+          </div>
+        )}
+
         <Tabs defaultValue="login" className="w-full">
           <TabsList className="grid w-full grid-cols-2 bg-gray-800">
             <TabsTrigger
@@ -224,6 +242,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               onClick={() => {
                 setError("")
                 setSuccess("")
+                setShowDatabaseSetup(false)
               }}
             >
               Login
@@ -234,6 +253,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               onClick={() => {
                 setError("")
                 setSuccess("")
+                setShowDatabaseSetup(false)
               }}
             >
               Sign Up
@@ -363,7 +383,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="signup-department" className="text-gray-300">
-                    Department *
+                    Department
                   </Label>
                   <Select
                     value={signupForm.department}
@@ -383,7 +403,7 @@ export function AuthModal({ isOpen, onClose, onSuccess }: AuthModalProps) {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-role" className="text-gray-300">
-                    Role *
+                    Role
                   </Label>
                   <Select
                     value={signupForm.role}
