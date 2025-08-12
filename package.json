@@ -9,7 +9,7 @@
     "start": "next start"
   },
   "dependencies": {
-    "@ai-sdk/openai": "latest",
+    "@ai-sdk/openai": "^2.0.4",
     "@radix-ui/react-avatar": "latest",
     "@radix-ui/react-checkbox": "latest",
     "@radix-ui/react-dialog": "latest",
@@ -18,17 +18,17 @@
     "@radix-ui/react-slot": "latest",
     "@radix-ui/react-tabs": "latest",
     "@supabase/supabase-js": "latest",
-    "ai": "latest",
+    "ai": "^3.0.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "lucide-react": "^0.454.0",
     "next": "14.2.16",
     "next-themes": "latest",
+    "node-fetch": "latest",
     "react": "^18",
     "react-dom": "^18",
     "tailwind-merge": "^2.5.5",
-    "tailwindcss-animate": "^1.0.7",
-    "zod": "latest"
+    "tailwindcss-animate": "^1.0.7"
   },
   "devDependencies": {
     "@types/node": "^22",
