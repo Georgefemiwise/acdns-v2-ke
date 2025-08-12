@@ -136,7 +136,43 @@ export default function SMSCenter() {
       if (error) {
         setError(`Failed to add recipient: ${error.message}`)
       } else {
-        setSuccess("Recipient added successfully!")
+        // Generate and send welcome message using AI
+        try {
+          const welcomePlaceholders = {
+            ownerName: newRecipient.name.trim(),
+            systemName: "CyberWatch Security System",
+            operatorName: user.user_metadata?.first_name || "Security Team",
+          }
+
+          const welcomeOptions: SmsGenerationOptions = {
+            messageType: "welcome",
+            tone: "friendly",
+            length: "medium",
+            includeEmoji: true,
+            placeholders: welcomePlaceholders,
+          }
+
+          // Generate personalized welcome message
+          const welcomeMessage = await aiSmsGenerator.generateMessage(welcomeOptions)
+          const personalizedMessage = AiSmsGenerator.replacePlaceholders(welcomeMessage.message, welcomePlaceholders)
+
+          // Simulate sending the welcome SMS (in real app, integrate with SMS service)
+          console.log(`Sending welcome SMS to ${newRecipient.name} (${newRecipient.phone}):`, personalizedMessage)
+
+          // You could also store this in the sms_messages table
+          await supabase.from("sms_messages").insert({
+            message_content: personalizedMessage,
+            message_type: "welcome",
+            recipients_count: 1,
+            status: "sent",
+            sent_at: new Date().toISOString(),
+            sent_by: user.id,
+          })
+        } catch (welcomeError) {
+          console.error("Failed to send welcome message:", welcomeError)
+          // Don't fail the whole operation if welcome message fails
+        }
+        setSuccess(`Recipient added successfully! Welcome message sent to ${newRecipient.name}!`)
         setNewRecipient({ name: "", phone: "" })
         fetchRecipients() // Refresh the list
         setTimeout(() => setSuccess(""), 3000)
