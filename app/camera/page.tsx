@@ -26,8 +26,7 @@ export default function CameraFeed() {
   const [selectedCamera, setSelectedCamera] = useState("");
   const [isStreaming, setIsStreaming] = useState(false);
   const [permissionGranted, setPermissionGranted] = useState(false);
-  const [detectedCars, setDetectedCars] = useState<any[]>([]);
-
+  // const [detectedCars, setDetectedCars] = useState<string[]>([]);
   // Log on first render
   useEffect(() => {
     console.log("[INIT] First render — cameras:", cameras);
@@ -105,7 +104,7 @@ export default function CameraFeed() {
       videoRef.current.srcObject = null;
     }
     setIsStreaming(false);
-    setDetectedCars([]);
+    // setDetectedCars([]);
   };
 
   return (
