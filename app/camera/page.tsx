@@ -10,7 +10,6 @@ import { AuthModal } from "@/components/AuthModal"
 import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 
-// Define the Camera device type
 interface CameraDevice {
   deviceId: string
   label: string
@@ -32,14 +31,12 @@ export default function CameraFeed() {
   const [isLoadingCameras, setIsLoadingCameras] = useState(true)
   const [permissionStatus, setPermissionStatus] = useState<"granted" | "denied" | "prompt" | "unknown">("unknown")
 
-  // Check authentication on mount
   useEffect(() => {
     if (!loading && !user) {
       setAuthModalOpen(true)
     }
   }, [user, loading])
 
-  // Get available cameras
   useEffect(() => {
     if (!user) return
 
@@ -48,14 +45,12 @@ export default function CameraFeed() {
         setIsLoadingCameras(true)
         setError("")
 
-        // Check if getUserMedia is supported
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
           setError("Camera access is not supported in this browser")
           setIsLoadingCameras(false)
           return
         }
 
-        // Request permission first
         try {
           const tempStream = await navigator.mediaDevices.getUserMedia({ video: true })
           tempStream.getTracks().forEach((track) => track.stop())
@@ -68,7 +63,6 @@ export default function CameraFeed() {
           return
         }
 
-        // Get list of video input devices
         const devices = await navigator.mediaDevices.enumerateDevices()
         const videoDevices = devices.filter((device) => device.kind === "videoinput")
 
@@ -87,7 +81,6 @@ export default function CameraFeed() {
 
         setCameras(cameraDevices)
 
-        // Auto-select first camera if available
         if (cameraDevices.length > 0) {
           setSelectedCameraId(cameraDevices[0].deviceId)
         }
@@ -101,7 +94,6 @@ export default function CameraFeed() {
 
     getCameras()
 
-    // Listen for device changes
     const handleDeviceChange = () => {
       getCameras()
     }
@@ -113,7 +105,6 @@ export default function CameraFeed() {
     }
   }, [user])
 
-  // Simulate car detection when streaming
   useEffect(() => {
     if (isStreaming && user) {
       const interval = setInterval(
@@ -127,7 +118,7 @@ export default function CameraFeed() {
           setDetectedCars((prev) => [newDetection, ...prev.slice(0, 4)])
         },
         Math.random() * 15000 + 10000,
-      ) // Random interval between 10-25 seconds
+      )
 
       return () => clearInterval(interval)
     }
@@ -147,12 +138,10 @@ export default function CameraFeed() {
     try {
       setError("")
 
-      // Stop any existing stream
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((track) => track.stop())
       }
 
-      // Get camera constraints
       const constraints: MediaStreamConstraints = {
         video: {
           deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
@@ -163,7 +152,6 @@ export default function CameraFeed() {
         audio: false,
       }
 
-      // Request camera stream
       const stream = await navigator.mediaDevices.getUserMedia(constraints)
       streamRef.current = stream
 
@@ -172,7 +160,6 @@ export default function CameraFeed() {
         videoRef.current.play()
         setIsStreaming(true)
 
-        // Get actual video track settings
         const videoTrack = stream.getVideoTracks()[0]
         if (videoTrack) {
           const settings = videoTrack.getSettings()
@@ -191,7 +178,6 @@ export default function CameraFeed() {
       } else if (error.name === "OverconstrainedError") {
         setError("Camera doesn't support the requested settings. Trying with default settings...")
 
-        // Retry with basic constraints
         try {
           const basicStream = await navigator.mediaDevices.getUserMedia({
             video: { deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined },
@@ -233,7 +219,6 @@ export default function CameraFeed() {
     setCameras([])
     setSelectedCameraId("")
 
-    // Small delay to show loading state
     setTimeout(async () => {
       try {
         const devices = await navigator.mediaDevices.enumerateDevices()
@@ -258,7 +243,6 @@ export default function CameraFeed() {
     }, 500)
   }
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (streamRef.current) {
@@ -295,7 +279,6 @@ export default function CameraFeed() {
       <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.1)_1px,transparent_1px)] bg-[size:50px_50px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
 
       <div className="relative z-10">
-        {/* Header */}
         <header className="border-b border-cyan-500/30 bg-gray-900/80 backdrop-blur-sm">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
@@ -322,7 +305,6 @@ export default function CameraFeed() {
 
         <div className="container mx-auto px-4 py-8">
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-            {/* Main Video Feed */}
             <div className="lg:col-span-2">
               <Card className="bg-gray-900/50 border-cyan-500/30">
                 <CardHeader>
@@ -363,7 +345,6 @@ export default function CameraFeed() {
                       </div>
                     )}
 
-                    {/* Detection Overlay */}
                     {isStreaming && detectedCars.length > 0 && (
                       <div className="absolute top-4 left-4">
                         <div className="bg-red-500/80 text-white px-3 py-1 rounded-full text-sm font-medium animate-pulse">
@@ -372,7 +353,6 @@ export default function CameraFeed() {
                       </div>
                     )}
 
-                    {/* Stream Status */}
                     {isStreaming && (
                       <div className="absolute top-4 right-4">
                         <div className="bg-green-500/80 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
@@ -383,7 +363,6 @@ export default function CameraFeed() {
                     )}
                   </div>
 
-                  {/* Camera Controls */}
                   <div className="mt-6 space-y-4">
                     <div className="flex flex-col sm:flex-row gap-4">
                       <div className="flex-1">
@@ -437,7 +416,6 @@ export default function CameraFeed() {
                       </div>
                     </div>
 
-                    {/* Camera Info */}
                     {selectedCameraId && cameras.length > 0 && (
                       <div className="text-sm text-gray-400 bg-gray-800/50 rounded p-3">
                         <p>
@@ -456,9 +434,7 @@ export default function CameraFeed() {
               </Card>
             </div>
 
-            {/* Sidebar */}
             <div className="space-y-6">
-              {/* Camera List */}
               <Card className="bg-gray-900/50 border-cyan-500/30">
                 <CardHeader>
                   <CardTitle className="text-cyan-400">Available Cameras</CardTitle>
@@ -515,7 +491,6 @@ export default function CameraFeed() {
                 </CardContent>
               </Card>
 
-              {/* Recent Detections */}
               <Card className="bg-gray-900/50 border-cyan-500/30">
                 <CardHeader>
                   <CardTitle className="text-cyan-400">Recent Detections</CardTitle>
