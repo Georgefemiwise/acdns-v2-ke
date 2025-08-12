@@ -7,14 +7,15 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Send, Users, ArrowLeft, Plus, Trash2, CheckCircle, AlertCircle, Heart } from "lucide-react"
+import { MessageSquare, Send, Users, ArrowLeft, Plus, Trash2, CheckCircle, AlertCircle } from "lucide-react"
 import { AuthModal } from "@/components/AuthModal"
 import { useAuth } from "@/contexts/AuthContext"
 import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 
-import { aiSmsGenerator, AiSmsGenerator, generateWelcomeMessage } from "@/lib/ai-sms-generator"
+import { aiSmsGenerator, AiSmsGenerator } from "@/lib/ai-sms-generator"
 import type { SmsGenerationOptions } from "@/lib/ai-sms-generator"
+import { sendWelcomeSms } from "@/lib/sms-service"
 
 interface SmsRecipient {
   id: string
@@ -33,7 +34,6 @@ export default function SMSCenter() {
   const [loadingRecipients, setLoadingRecipients] = useState(true)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
-  const [sendingWelcome, setSendingWelcome] = useState(false)
 
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false)
   const [messageOptions, setMessageOptions] = useState<Partial<SmsGenerationOptions>>({
@@ -75,33 +75,6 @@ export default function SMSCenter() {
       setError("An unexpected error occurred")
     } finally {
       setLoadingRecipients(false)
-    }
-  }
-
-  const sendWelcomeMessage = async (recipientName: string, recipientPhone: string) => {
-    try {
-      setSendingWelcome(true)
-
-      // Generate AI-powered welcome message
-      const welcomeMessage = await generateWelcomeMessage(
-        recipientName,
-        "CyberWatch System", // Using system name as placeholder
-        "Security",
-        "Platform",
-      )
-
-      // Simulate sending SMS (in real app, integrate with Twilio/SMS service)
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-
-      // Log the welcome message (you could store this in sms_messages table)
-      console.log(`Welcome SMS sent to ${recipientName} (${recipientPhone}): ${welcomeMessage}`)
-
-      return welcomeMessage
-    } catch (error) {
-      console.error("Failed to send welcome message:", error)
-      throw error
-    } finally {
-      setSendingWelcome(false)
     }
   }
 
@@ -154,26 +127,38 @@ export default function SMSCenter() {
 
     try {
       setError("")
-      const { data, error } = await supabase
-        .from("sms_recipients")
-        .insert({
-          name: newRecipient.name.trim(),
-          phone: newRecipient.phone.trim(),
-          is_active: true,
-          created_by: user.id,
-        })
-        .select()
-        .single()
+      const { error } = await supabase.from("sms_recipients").insert({
+        name: newRecipient.name.trim(),
+        phone: newRecipient.phone.trim(),
+        is_active: true,
+        created_by: user.id,
+      })
 
       if (error) {
         setError(`Failed to add recipient: ${error.message}`)
       } else {
-        // Send welcome message using AI
+        // Send welcome SMS using real SMS service
         try {
-          const welcomeMsg = await sendWelcomeMessage(newRecipient.name.trim(), newRecipient.phone.trim())
-          setSuccess(`🎉 Recipient added successfully! Welcome message sent: "${welcomeMsg.substring(0, 50)}..."`)
-        } catch (welcomeError) {
-          setSuccess("Recipient added successfully! (Welcome message failed to send)")
+          const smsResult = await sendWelcomeSms(newRecipient.name.trim(), newRecipient.phone.trim())
+
+          if (smsResult.success) {
+            // Log SMS in database
+            await supabase.from("sms_messages").insert({
+              message_content: `Welcome ${newRecipient.name}! You've been added to CyberWatch SMS notifications.`,
+              message_type: "welcome",
+              recipients_count: 1,
+              status: "sent",
+              sent_at: new Date().toISOString(),
+              sent_by: user.id,
+            })
+
+            setSuccess(`🎉 Recipient added and welcome SMS sent! Message ID: ${smsResult.messageId}`)
+          } else {
+            setSuccess(`Recipient added successfully! SMS failed: ${smsResult.error}`)
+          }
+        } catch (smsError) {
+          console.error("SMS sending failed:", smsError)
+          setSuccess("Recipient added successfully! SMS sending failed.")
         }
 
         setNewRecipient({ name: "", phone: "" })
@@ -250,11 +235,12 @@ export default function SMSCenter() {
     },
     {
       id: 2,
-      message: "Welcome to CyberWatch! 🎉 Your Security Platform is now active. Drive safe!",
+      message:
+        "🚗 Hi John! Your Tesla Model 3 (ABC-123) has been successfully registered with CyberWatch Security System. Welcome aboard! 🎉",
       recipients: 1,
       timestamp: "2024-01-15 13:45",
       status: "sent",
-      type: "welcome",
+      type: "car_registration",
     },
     {
       id: 3,
@@ -265,7 +251,7 @@ export default function SMSCenter() {
     },
     {
       id: 4,
-      message: "Hi Sarah! 🎉 Your Security Platform is now in our system. Welcome to the family! 🚗✨",
+      message: "👋 Welcome Sarah! You've been added to CyberWatch SMS notifications. Stay secure! 🔒✨",
       recipients: 1,
       timestamp: "2024-01-15 11:20",
       status: "sent",
@@ -346,13 +332,6 @@ export default function SMSCenter() {
             <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400">
               <CheckCircle className="h-4 w-4 flex-shrink-0" />
               <span>{success}</span>
-            </div>
-          )}
-
-          {sendingWelcome && (
-            <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-purple-500/10 border-purple-500/30 text-purple-400">
-              <Heart className="h-4 w-4 flex-shrink-0 animate-pulse" />
-              <span>Sending AI-powered welcome message...</span>
             </div>
           )}
 
@@ -483,7 +462,7 @@ export default function SMSCenter() {
                     Add New Recipient
                   </CardTitle>
                   <CardDescription className="text-gray-400">
-                    New recipients automatically receive a warm AI-generated welcome message! 🎉
+                    New recipients automatically receive a welcome SMS! 📱
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -518,20 +497,11 @@ export default function SMSCenter() {
 
                     <Button
                       onClick={handleAddRecipient}
-                      disabled={!newRecipient.name.trim() || !newRecipient.phone.trim() || sendingWelcome}
+                      disabled={!newRecipient.name.trim() || !newRecipient.phone.trim()}
                       className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50"
                     >
-                      {sendingWelcome ? (
-                        <>
-                          <Heart className="h-4 w-4 mr-2 animate-pulse" />
-                          Sending Welcome Message...
-                        </>
-                      ) : (
-                        <>
-                          <Plus className="h-4 w-4 mr-2" />
-                          Add Recipient & Send Welcome
-                        </>
-                      )}
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add Recipient & Send Welcome SMS
                     </Button>
                   </div>
                 </CardContent>
@@ -614,12 +584,14 @@ export default function SMSCenter() {
                       <div key={msg.id} className="p-3 rounded-lg bg-gray-800/50 border border-gray-700/50">
                         <div className="flex items-start justify-between mb-2">
                           <div className="flex items-start space-x-2 flex-1 mr-2">
-                            {msg.type === "welcome" && (
-                              <Heart className="h-4 w-4 text-purple-400 mt-0.5 flex-shrink-0" />
-                            )}
                             <p className="text-white text-sm flex-1">{msg.message}</p>
                           </div>
                           <div className="flex items-center space-x-2">
+                            {msg.type === "car_registration" && (
+                              <Badge className="bg-blue-500/20 text-blue-400 border-blue-500/30 text-xs">
+                                Car Registration
+                              </Badge>
+                            )}
                             {msg.type === "welcome" && (
                               <Badge className="bg-purple-500/20 text-purple-400 border-purple-500/30 text-xs">
                                 Welcome
