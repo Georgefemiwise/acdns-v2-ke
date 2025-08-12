@@ -41,51 +41,165 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    // Get initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session)
-      setUser(session?.user ?? null)
-      if (session?.user) {
-        fetchUserProfile(session.user.id)
-      } else {
-        setLoading(false)
+    let mounted = true
+
+    const initializeAuth = async () => {
+      try {
+        console.log("Initializing auth...")
+
+        // Get initial session
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession()
+
+        if (error) {
+          console.error("Error getting session:", error)
+          if (mounted) {
+            setSession(null)
+            setUser(null)
+            setProfile(null)
+            setLoading(false)
+          }
+          return
+        }
+
+        if (mounted) {
+          setSession(session)
+          setUser(session?.user ?? null)
+
+          if (session?.user) {
+            await fetchUserProfile(session.user.id)
+          } else {
+            setLoading(false)
+          }
+        }
+      } catch (error) {
+        console.error("Error initializing auth:", error)
+        if (mounted) {
+          setSession(null)
+          setUser(null)
+          setProfile(null)
+          setLoading(false)
+        }
       }
-    })
+    }
+
+    initializeAuth()
 
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      setSession(session)
-      setUser(session?.user ?? null)
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("Auth state changed:", event, session?.user?.id)
 
-      if (session?.user) {
-        await fetchUserProfile(session.user.id)
-      } else {
-        setProfile(null)
-        setLoading(false)
+      if (mounted) {
+        setSession(session)
+        setUser(session?.user ?? null)
+
+        if (session?.user) {
+          await fetchUserProfile(session.user.id)
+        } else {
+          setProfile(null)
+          setLoading(false)
+        }
       }
     })
 
-    return () => subscription.unsubscribe()
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
   }, [])
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      console.log("Fetching profile for user:", userId)
+
       const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
 
       if (error) {
         console.error("Error fetching user profile:", error)
-        // If profile doesn't exist, create a basic one
-        if (error.code === "PGRST116") {
-          console.log("Profile not found, user may need to complete signup")
+
+        // If profile doesn't exist, create a basic one from auth user
+        if (error.code === "PGRST116" || error.message.includes("table") || error.message.includes("does not exist")) {
+          console.log("Profile not found or table missing, creating basic profile from auth data")
+
+          try {
+            // Get user data from auth
+            const {
+              data: { user },
+            } = await supabase.auth.getUser()
+
+            if (user) {
+              // Create a basic profile object from auth metadata
+              const basicProfile = {
+                id: user.id,
+                email: user.email || "",
+                first_name: user.user_metadata?.first_name || user.email?.split("@")[0] || "User",
+                last_name: user.user_metadata?.last_name || "",
+                phone: user.user_metadata?.phone || "",
+                department: user.user_metadata?.department || "",
+                role: "operator",
+                avatar_url: user.user_metadata?.avatar_url || "",
+                is_active: true,
+                created_at: user.created_at || new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              }
+
+              setProfile(basicProfile)
+              console.log("Using basic profile from auth metadata")
+            } else {
+              console.error("No auth user found")
+              setProfile(null)
+            }
+          } catch (authError) {
+            console.error("Error getting auth user:", authError)
+            setProfile(null)
+          }
+        } else {
+          // Other database errors
+          console.error("Database error:", error)
+          setProfile(null)
         }
       } else {
+        console.log("Profile fetched successfully:", data)
         setProfile(data)
       }
     } catch (error) {
-      console.error("Error fetching user profile:", error)
+      console.error("Unexpected error fetching user profile:", error)
+
+      // Fallback: create basic profile from auth user
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          const fallbackProfile = {
+            id: user.id,
+            email: user.email || "",
+            first_name: user.user_metadata?.first_name || user.email?.split("@")[0] || "User",
+            last_name: user.user_metadata?.last_name || "",
+            phone: "",
+            department: "",
+            role: "operator",
+            avatar_url: "",
+            is_active: true,
+            created_at: user.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+          setProfile(fallbackProfile)
+          console.log("Using fallback profile")
+        } else {
+          setProfile(null)
+        }
+      } catch (fallbackError) {
+        console.error("Fallback profile creation failed:", fallbackError)
+        setProfile(null)
+      }
     } finally {
+      // GUARANTEE that loading is set to false
+      console.log("Setting loading to false")
       setLoading(false)
     }
   }
