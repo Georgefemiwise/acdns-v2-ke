@@ -5,32 +5,32 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Play, Square, Settings, Maximize, ArrowLeft, Camera } from 'lucide-react'
+import { Play, Square, Settings, Maximize, ArrowLeft, Camera, AlertCircle, RefreshCw } from "lucide-react"
 import { AuthModal } from "@/components/AuthModal"
 import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 
-// Define the Camera type
-interface CameraType {
-  id: string
-  name: string
-  status: string
-  location: string
-  stream_url: string
-  ip_address: string
-  last_heartbeat?: string
+// Define the Camera device type
+interface CameraDevice {
+  deviceId: string
+  label: string
+  kind: string
+  groupId: string
 }
 
 export default function CameraFeed() {
   const { user, loading } = useAuth()
-  const [selectedCamera, setSelectedCamera] = useState("")
+  const [selectedCameraId, setSelectedCameraId] = useState("")
   const [isStreaming, setIsStreaming] = useState(false)
   const [detectedCars, setDetectedCars] = useState<any[]>([])
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [error, setError] = useState("")
   const videoRef = useRef<HTMLVideoElement>(null)
+  const streamRef = useRef<MediaStream | null>(null)
 
-  const [cameras, setCameras] = useState<CameraType[]>([])
+  const [cameras, setCameras] = useState<CameraDevice[]>([])
   const [isLoadingCameras, setIsLoadingCameras] = useState(true)
+  const [permissionStatus, setPermissionStatus] = useState<"granted" | "denied" | "prompt" | "unknown">("unknown")
 
   // Check authentication on mount
   useEffect(() => {
@@ -39,65 +39,83 @@ export default function CameraFeed() {
     }
   }, [user, loading])
 
-  // Fetch cameras from Supabase
+  // Get available cameras
   useEffect(() => {
     if (!user) return
 
-    const fetchCameras = async () => {
+    const getCameras = async () => {
       try {
-        // This would be replaced with actual Supabase call
-        const mockCameras = [
-          {
-            id: "cam1",
-            name: "Main Entrance",
-            status: "online",
-            location: "Gate A",
-            stream_url: "rtsp://192.168.1.100:554/stream1",
-            ip_address: "192.168.1.100",
-          },
-          {
-            id: "cam2",
-            name: "Parking Lot",
-            status: "online",
-            location: "Zone B",
-            stream_url: "rtsp://192.168.1.101:554/stream1",
-            ip_address: "192.168.1.101",
-          },
-          {
-            id: "cam3",
-            name: "Exit Gate",
-            status: "offline",
-            location: "Gate C",
-            stream_url: "rtsp://192.168.1.102:554/stream1",
-            ip_address: "192.168.1.102",
-          },
-          {
-            id: "cam4",
-            name: "Side Entrance",
-            status: "online",
-            location: "Gate D",
-            stream_url: "rtsp://192.168.1.103:554/stream1",
-            ip_address: "192.168.1.103",
-          },
-        ]
-        setCameras(mockCameras)
-        setIsLoadingCameras(false)
+        setIsLoadingCameras(true)
+        setError("")
+
+        // Check if getUserMedia is supported
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          setError("Camera access is not supported in this browser")
+          setIsLoadingCameras(false)
+          return
+        }
+
+        // Request permission first
+        try {
+          const tempStream = await navigator.mediaDevices.getUserMedia({ video: true })
+          tempStream.getTracks().forEach((track) => track.stop())
+          setPermissionStatus("granted")
+        } catch (permError) {
+          console.error("Permission denied:", permError)
+          setPermissionStatus("denied")
+          setError("Camera permission denied. Please allow camera access and refresh the page.")
+          setIsLoadingCameras(false)
+          return
+        }
+
+        // Get list of video input devices
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const videoDevices = devices.filter((device) => device.kind === "videoinput")
+
+        if (videoDevices.length === 0) {
+          setError("No cameras found on this device")
+          setIsLoadingCameras(false)
+          return
+        }
+
+        const cameraDevices: CameraDevice[] = videoDevices.map((device, index) => ({
+          deviceId: device.deviceId,
+          label: device.label || `Camera ${index + 1}`,
+          kind: device.kind,
+          groupId: device.groupId,
+        }))
+
+        setCameras(cameraDevices)
+
+        // Auto-select first camera if available
+        if (cameraDevices.length > 0) {
+          setSelectedCameraId(cameraDevices[0].deviceId)
+        }
       } catch (error) {
-        console.error("Failed to fetch cameras:", error)
+        console.error("Error getting cameras:", error)
+        setError("Failed to access cameras. Please check your browser permissions.")
+      } finally {
         setIsLoadingCameras(false)
       }
     }
 
-    fetchCameras()
+    getCameras()
 
-    // Set up real-time camera status updates
-    const interval = setInterval(fetchCameras, 30000) // Update every 30 seconds
-    return () => clearInterval(interval)
+    // Listen for device changes
+    const handleDeviceChange = () => {
+      getCameras()
+    }
+
+    navigator.mediaDevices?.addEventListener("devicechange", handleDeviceChange)
+
+    return () => {
+      navigator.mediaDevices?.removeEventListener("devicechange", handleDeviceChange)
+    }
   }, [user])
 
+  // Simulate car detection when streaming
   useEffect(() => {
     if (isStreaming && user) {
-      // Simulate car detection
       const interval = setInterval(
         () => {
           const newDetection = {
@@ -108,8 +126,8 @@ export default function CameraFeed() {
           }
           setDetectedCars((prev) => [newDetection, ...prev.slice(0, 4)])
         },
-        Math.random() * 10000 + 5000,
-      )
+        Math.random() * 15000 + 10000,
+      ) // Random interval between 10-25 seconds
 
       return () => clearInterval(interval)
     }
@@ -121,76 +139,133 @@ export default function CameraFeed() {
       return
     }
 
-    if (!selectedCamera) return
-
-    const camera = cameras.find((c) => c.id === selectedCamera)
-    if (!camera) return
+    if (!selectedCameraId) {
+      setError("Please select a camera first")
+      return
+    }
 
     try {
-      let stream: MediaStream
+      setError("")
 
-      if (camera.stream_url.startsWith("rtsp://")) {
-        // For RTSP streams, we'd typically use a WebRTC gateway
-        // For demo purposes, we'll use getUserMedia
-        stream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            frameRate: { ideal: 30 },
-          },
-        })
-      } else if (camera.stream_url.startsWith("http://") || camera.stream_url.startsWith("https://")) {
-        // For HTTP streams, we'd set the video src directly
-        if (videoRef.current) {
-          videoRef.current.src = camera.stream_url
-          setIsStreaming(true)
-          return
-        }
-      } else {
-        // Default to getUserMedia for demo
-        stream = await navigator.mediaDevices.getUserMedia({ video: true })
+      // Stop any existing stream
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop())
       }
 
-      if (videoRef.current && stream) {
+      // Get camera constraints
+      const constraints: MediaStreamConstraints = {
+        video: {
+          deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
+          width: { ideal: 1920, max: 1920 },
+          height: { ideal: 1080, max: 1080 },
+          frameRate: { ideal: 30, max: 30 },
+        },
+        audio: false,
+      }
+
+      // Request camera stream
+      const stream = await navigator.mediaDevices.getUserMedia(constraints)
+      streamRef.current = stream
+
+      if (videoRef.current) {
         videoRef.current.srcObject = stream
+        videoRef.current.play()
         setIsStreaming(true)
 
-        // Update camera status to indicate active streaming
-        setCameras((prev) =>
-          prev.map((c) => (c.id === selectedCamera ? { ...c, last_heartbeat: new Date().toISOString() } : c)),
-        )
+        // Get actual video track settings
+        const videoTrack = stream.getVideoTracks()[0]
+        if (videoTrack) {
+          const settings = videoTrack.getSettings()
+          console.log("Camera settings:", settings)
+        }
       }
-    } catch (error) {
-      console.error("Error accessing camera:", error)
-      // Show user-friendly error message
-      alert(`Failed to connect to camera: ${camera.name}. Please check camera status.`)
+    } catch (error: any) {
+      console.error("Error starting camera:", error)
+
+      if (error.name === "NotAllowedError") {
+        setError("Camera permission denied. Please allow camera access in your browser settings.")
+      } else if (error.name === "NotFoundError") {
+        setError("Selected camera not found. Please try a different camera.")
+      } else if (error.name === "NotReadableError") {
+        setError("Camera is already in use by another application.")
+      } else if (error.name === "OverconstrainedError") {
+        setError("Camera doesn't support the requested settings. Trying with default settings...")
+
+        // Retry with basic constraints
+        try {
+          const basicStream = await navigator.mediaDevices.getUserMedia({
+            video: { deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined },
+          })
+          streamRef.current = basicStream
+
+          if (videoRef.current) {
+            videoRef.current.srcObject = basicStream
+            videoRef.current.play()
+            setIsStreaming(true)
+            setError("")
+          }
+        } catch (retryError) {
+          setError("Failed to start camera with basic settings.")
+        }
+      } else {
+        setError(`Failed to start camera: ${error.message}`)
+      }
     }
   }
 
   const stopStream = () => {
-    if (videoRef.current?.srcObject) {
-      const tracks = (videoRef.current.srcObject as MediaStream).getTracks()
-      tracks.forEach((track) => track.stop())
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop())
+      streamRef.current = null
+    }
+
+    if (videoRef.current) {
       videoRef.current.srcObject = null
     }
+
     setIsStreaming(false)
     setDetectedCars([])
+    setError("")
   }
 
-  // Add camera health check
-  useEffect(() => {
-    if (!isStreaming || !selectedCamera || !user) return
+  const refreshCameras = async () => {
+    setIsLoadingCameras(true)
+    setCameras([])
+    setSelectedCameraId("")
 
-    const healthCheck = setInterval(() => {
-      const camera = cameras.find((c) => c.id === selectedCamera)
-      if (camera && camera.status === "offline") {
-        stopStream()
-        alert(`Camera ${camera.name} went offline. Stream stopped.`)
+    // Small delay to show loading state
+    setTimeout(async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices()
+        const videoDevices = devices.filter((device) => device.kind === "videoinput")
+
+        const cameraDevices: CameraDevice[] = videoDevices.map((device, index) => ({
+          deviceId: device.deviceId,
+          label: device.label || `Camera ${index + 1}`,
+          kind: device.kind,
+          groupId: device.groupId,
+        }))
+
+        setCameras(cameraDevices)
+        if (cameraDevices.length > 0) {
+          setSelectedCameraId(cameraDevices[0].deviceId)
+        }
+      } catch (error) {
+        setError("Failed to refresh camera list")
+      } finally {
+        setIsLoadingCameras(false)
       }
-    }, 5000)
+    }, 500)
+  }
 
-    return () => clearInterval(healthCheck)
-  }, [isStreaming, selectedCamera, cameras, user])
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach((track) => track.stop())
+      }
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -206,8 +281,8 @@ export default function CameraFeed() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
-        <AuthModal 
-          isOpen={authModalOpen} 
+        <AuthModal
+          isOpen={authModalOpen}
           onClose={() => setAuthModalOpen(false)}
           onSuccess={() => window.location.reload()}
         />
@@ -237,11 +312,9 @@ export default function CameraFeed() {
               </div>
               <div className="flex items-center space-x-4">
                 <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
-                  {cameras.filter((c) => c.status === "online").length} Cameras Online
+                  {cameras.length} Camera{cameras.length !== 1 ? "s" : ""} Available
                 </Badge>
-                <span className="text-sm text-gray-300">
-                  {user.user_metadata?.first_name || user.email}
-                </span>
+                <span className="text-sm text-gray-300">{user.user_metadata?.first_name || user.email}</span>
               </div>
             </div>
           </div>
@@ -256,7 +329,7 @@ export default function CameraFeed() {
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-cyan-400 flex items-center">
                       <Camera className="mr-2 h-5 w-5" />
-                      Video Stream
+                      Device Camera Stream
                     </CardTitle>
                     <div className="flex items-center space-x-2">
                       <Button variant="ghost" size="sm" className="text-gray-400 hover:text-cyan-400">
@@ -267,16 +340,25 @@ export default function CameraFeed() {
                       </Button>
                     </div>
                   </div>
+                  {error && (
+                    <div className="flex items-center space-x-2 text-red-400 text-sm bg-red-500/10 border border-red-500/30 rounded p-3 mt-2">
+                      <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                      <span>{error}</span>
+                    </div>
+                  )}
                 </CardHeader>
                 <CardContent>
                   <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden border border-gray-700 relative">
                     {isStreaming ? (
-                      <video ref={videoRef} autoPlay muted className="w-full h-full object-cover" />
+                      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
                     ) : (
                       <div className="flex items-center justify-center h-full">
                         <div className="text-center">
                           <Camera className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-                          <p className="text-gray-400">Select a camera and start streaming</p>
+                          <p className="text-gray-400 mb-2">Select a camera and start streaming</p>
+                          {permissionStatus === "denied" && (
+                            <p className="text-red-400 text-sm">Camera permission required</p>
+                          )}
                         </div>
                       </div>
                     )}
@@ -289,39 +371,58 @@ export default function CameraFeed() {
                         </div>
                       </div>
                     )}
+
+                    {/* Stream Status */}
+                    {isStreaming && (
+                      <div className="absolute top-4 right-4">
+                        <div className="bg-green-500/80 text-white px-3 py-1 rounded-full text-sm font-medium flex items-center">
+                          <div className="w-2 h-2 bg-white rounded-full mr-2 animate-pulse"></div>
+                          LIVE
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Camera Controls */}
                   <div className="mt-6 space-y-4">
                     <div className="flex flex-col sm:flex-row gap-4">
-                      <Select value={selectedCamera} onValueChange={setSelectedCamera}>
-                        <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                          <SelectValue placeholder="Select Camera" />
-                        </SelectTrigger>
-                        <SelectContent className="bg-gray-800 border-gray-700">
-                          {cameras.map((camera) => (
-                            <SelectItem key={camera.id} value={camera.id} disabled={camera.status === "offline"}>
-                              <div className="flex items-center justify-between w-full">
+                      <div className="flex-1">
+                        <Select
+                          value={selectedCameraId}
+                          onValueChange={setSelectedCameraId}
+                          disabled={isLoadingCameras || isStreaming}
+                        >
+                          <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
+                            <SelectValue placeholder={isLoadingCameras ? "Loading cameras..." : "Select Camera"} />
+                          </SelectTrigger>
+                          <SelectContent className="bg-gray-800 border-gray-700">
+                            {cameras.map((camera, index) => (
+                              <SelectItem key={camera.deviceId} value={camera.deviceId}>
                                 <div className="flex items-center space-x-2">
-                                  <div
-                                    className={`w-2 h-2 rounded-full ${camera.status === "online" ? "bg-green-400" : "bg-red-400"}`}
-                                  />
-                                  <span>
-                                    {camera.name} - {camera.location}
-                                  </span>
+                                  <Camera className="h-4 w-4 text-cyan-400" />
+                                  <span>{camera.label}</span>
                                 </div>
-                                <div className="text-xs text-gray-400 ml-2">{camera.ip_address}</div>
-                              </div>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
 
                       <div className="flex space-x-2">
+                        <Button
+                          onClick={refreshCameras}
+                          disabled={isLoadingCameras || isStreaming}
+                          variant="outline"
+                          className="border-gray-600 text-gray-300 hover:bg-gray-800 bg-transparent"
+                        >
+                          <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingCameras ? "animate-spin" : ""}`} />
+                          Refresh
+                        </Button>
+
                         {!isStreaming ? (
                           <Button
                             onClick={startStream}
-                            disabled={!selectedCamera}
+                            disabled={!selectedCameraId || isLoadingCameras}
                             className="bg-green-500 hover:bg-green-600"
                           >
                             <Play className="h-4 w-4 mr-2" />
@@ -335,6 +436,21 @@ export default function CameraFeed() {
                         )}
                       </div>
                     </div>
+
+                    {/* Camera Info */}
+                    {selectedCameraId && cameras.length > 0 && (
+                      <div className="text-sm text-gray-400 bg-gray-800/50 rounded p-3">
+                        <p>
+                          <strong>Selected:</strong> {cameras.find((c) => c.deviceId === selectedCameraId)?.label}
+                        </p>
+                        <p>
+                          <strong>Device ID:</strong> {selectedCameraId.substring(0, 20)}...
+                        </p>
+                        <p>
+                          <strong>Status:</strong> {isStreaming ? "Streaming" : "Ready"}
+                        </p>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -342,29 +458,59 @@ export default function CameraFeed() {
 
             {/* Sidebar */}
             <div className="space-y-6">
-              {/* Camera Status */}
+              {/* Camera List */}
               <Card className="bg-gray-900/50 border-cyan-500/30">
                 <CardHeader>
-                  <CardTitle className="text-cyan-400">Camera Status</CardTitle>
+                  <CardTitle className="text-cyan-400">Available Cameras</CardTitle>
+                  <CardDescription className="text-gray-400">
+                    {cameras.length} device camera{cameras.length !== 1 ? "s" : ""} detected
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
-                    {cameras.map((camera) => (
-                      <div key={camera.id} className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50">
-                        <div>
-                          <p className="text-white font-medium">{camera.name}</p>
-                          <p className="text-gray-400 text-sm">{camera.location}</p>
-                        </div>
-                        <Badge
-                          variant={camera.status === "online" ? "default" : "destructive"}
-                          className={
-                            camera.status === "online" ? "bg-green-500/20 text-green-400 border-green-500/30" : ""
-                          }
-                        >
-                          {camera.status}
-                        </Badge>
+                    {isLoadingCameras ? (
+                      <div className="text-center py-4">
+                        <RefreshCw className="h-6 w-6 text-cyan-400 mx-auto mb-2 animate-spin" />
+                        <p className="text-gray-400 text-sm">Detecting cameras...</p>
                       </div>
-                    ))}
+                    ) : cameras.length > 0 ? (
+                      cameras.map((camera, index) => (
+                        <div
+                          key={camera.deviceId}
+                          className={`flex items-center justify-between p-3 rounded-lg border transition-colors cursor-pointer ${
+                            selectedCameraId === camera.deviceId
+                              ? "bg-cyan-500/20 border-cyan-500/50"
+                              : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600/50"
+                          }`}
+                          onClick={() => !isStreaming && setSelectedCameraId(camera.deviceId)}
+                        >
+                          <div className="flex items-center space-x-3">
+                            <Camera className="h-4 w-4 text-cyan-400" />
+                            <div>
+                              <p className="text-white font-medium">{camera.label}</p>
+                              <p className="text-gray-400 text-xs">Camera {index + 1}</p>
+                            </div>
+                          </div>
+                          {selectedCameraId === camera.deviceId && (
+                            <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Selected</Badge>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <div className="text-center py-8">
+                        <AlertCircle className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+                        <p className="text-gray-400">No cameras detected</p>
+                        <p className="text-gray-500 text-sm mb-4">Check camera permissions</p>
+                        <Button
+                          onClick={refreshCameras}
+                          size="sm"
+                          className="bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/50"
+                        >
+                          <RefreshCw className="h-4 w-4 mr-2" />
+                          Try Again
+                        </Button>
+                      </div>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -373,7 +519,7 @@ export default function CameraFeed() {
               <Card className="bg-gray-900/50 border-cyan-500/30">
                 <CardHeader>
                   <CardTitle className="text-cyan-400">Recent Detections</CardTitle>
-                  <CardDescription className="text-gray-400">Latest car detections from active cameras</CardDescription>
+                  <CardDescription className="text-gray-400">AI-powered license plate detection</CardDescription>
                 </CardHeader>
                 <CardContent>
                   {detectedCars.length > 0 ? (
@@ -394,7 +540,7 @@ export default function CameraFeed() {
                     <div className="text-center py-8">
                       <Camera className="h-12 w-12 text-gray-600 mx-auto mb-3" />
                       <p className="text-gray-400">No detections yet</p>
-                      <p className="text-gray-500 text-sm">Start streaming to see detected vehicles</p>
+                      <p className="text-gray-500 text-sm">Start streaming to detect vehicles</p>
                     </div>
                   )}
                 </CardContent>
