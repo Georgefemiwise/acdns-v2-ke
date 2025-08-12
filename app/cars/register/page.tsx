@@ -9,13 +9,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Car, ArrowLeft, Save, CheckCircle, AlertCircle, MessageSquare } from "lucide-react"
+import { Car, ArrowLeft, Save, CheckCircle, AlertCircle, MessageSquare, Zap, FileText } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { sendCarRegistrationSms, smsService } from "@/lib/sms-service"
-import { generateWelcomeMessage } from "@/lib/ai-sms-generator"
+import { generateWelcomeMessage, aiSmsGenerator } from "@/lib/ai-sms-generator"
 
 export default function RegisterCar() {
   const { user } = useAuth()
@@ -78,13 +78,14 @@ export default function RegisterCar() {
 
       // Vehicle registered successfully, now send SMS via Arkesel
       setSendingSms(true)
+      const messageGenType = aiSmsGenerator.isAiAvailable() ? "AI" : "template"
       setMessage({
         type: "success",
-        text: `Vehicle registered successfully! Sending welcome SMS via ${smsService.getProviderName()}...`,
+        text: `Vehicle registered successfully! Generating ${messageGenType}-based welcome SMS via ${smsService.getProviderName()}...`,
       })
 
       try {
-        // Generate AI-powered welcome message for car registration
+        // Generate welcome message (will use templates if OpenAI not available)
         const aiWelcomeMessage = await generateWelcomeMessage(
           formData.ownerName,
           formData.license.toUpperCase(),
@@ -115,7 +116,7 @@ export default function RegisterCar() {
 
           setMessage({
             type: "success",
-            text: `🎉 Vehicle registered and welcome SMS sent via ${smsResult.provider} to ${formData.ownerName}! Message ID: ${smsResult.messageId}`,
+            text: `🎉 Vehicle registered and ${messageGenType}-generated welcome SMS sent via ${smsResult.provider} to ${formData.ownerName}! Message ID: ${smsResult.messageId}`,
           })
         } else {
           setMessage({
@@ -124,10 +125,10 @@ export default function RegisterCar() {
           })
         }
       } catch (smsError) {
-        console.error("Arkesel SMS sending failed:", smsError)
+        console.error("SMS sending failed:", smsError)
         setMessage({
           type: "success",
-          text: "Vehicle registered successfully! Arkesel SMS sending failed - please check API configuration.",
+          text: "Vehicle registered successfully! SMS sending failed - using fallback message generation.",
         })
       }
 
@@ -179,9 +180,23 @@ export default function RegisterCar() {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
                 Register New Vehicle
               </h1>
-              <div className="ml-auto">
-                <span className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded">
+              <div className="ml-auto flex items-center space-x-2">
+                <span className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded flex items-center">
+                  <MessageSquare className="h-3 w-3 mr-1" />
                   SMS: {smsService.getProviderName()}
+                </span>
+                <span className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded flex items-center">
+                  {aiSmsGenerator.isAiAvailable() ? (
+                    <>
+                      <Zap className="h-3 w-3 mr-1 text-yellow-400" />
+                      AI Messages
+                    </>
+                  ) : (
+                    <>
+                      <FileText className="h-3 w-3 mr-1 text-blue-400" />
+                      Template Messages
+                    </>
+                  )}
                 </span>
               </div>
             </div>
@@ -212,7 +227,21 @@ export default function RegisterCar() {
             {sendingSms && (
               <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-purple-500/10 border-purple-500/30 text-purple-400">
                 <MessageSquare className="h-4 w-4 flex-shrink-0 animate-pulse" />
-                <span>Sending welcome SMS via Arkesel to car owner...</span>
+                <span>
+                  Generating {aiSmsGenerator.isAiAvailable() ? "AI-powered" : "template-based"} welcome SMS via
+                  Arkesel...
+                </span>
+              </div>
+            )}
+
+            {/* AI Status Info */}
+            {!aiSmsGenerator.isAiAvailable() && (
+              <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-blue-500/10 border-blue-500/30 text-blue-400">
+                <FileText className="h-4 w-4 flex-shrink-0" />
+                <span>
+                  Using template-based SMS messages. Add OPENAI_API_KEY environment variable to enable AI-generated
+                  messages.
+                </span>
               </div>
             )}
 
@@ -224,6 +253,7 @@ export default function RegisterCar() {
                 </CardTitle>
                 <CardDescription className="text-gray-400">
                   Enter the vehicle and owner details. Owner will receive an instant SMS confirmation via Arkesel! 📱
+                  {aiSmsGenerator.isAiAvailable() ? " (AI-generated messages)" : " (Template-based messages)"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -363,7 +393,10 @@ export default function RegisterCar() {
                           required
                           disabled={loading}
                         />
-                        <p className="text-xs text-gray-500">📱 Owner will receive instant SMS via Arkesel</p>
+                        <p className="text-xs text-gray-500">
+                          📱 Owner will receive instant{" "}
+                          {aiSmsGenerator.isAiAvailable() ? "AI-generated" : "template-based"} SMS via Arkesel
+                        </p>
                       </div>
 
                       <div className="space-y-2">

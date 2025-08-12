@@ -4,6 +4,7 @@ import { openai } from "@ai-sdk/openai"
 // =============================================
 // AI SMS MESSAGE GENERATOR
 // Uses OpenAI to create engaging, personalized SMS messages
+// Falls back to templates if OpenAI is not available
 // =============================================
 
 export interface SmsPlaceholders {
@@ -34,6 +35,7 @@ export interface GeneratedSmsMessage {
   estimatedLength: number
   tone: string
   messageType: string
+  generatedBy: "ai" | "template"
 }
 
 // Predefined message templates for different scenarios
@@ -76,11 +78,27 @@ const MESSAGE_TEMPLATES = {
 
 export class AiSmsGenerator {
   private model = openai("gpt-4o-mini")
+  private hasOpenAiKey: boolean
+
+  constructor() {
+    // Check if OpenAI API key is available
+    this.hasOpenAiKey = !!(process.env.OPENAI_API_KEY || process.env.NEXT_PUBLIC_OPENAI_API_KEY)
+
+    if (!this.hasOpenAiKey) {
+      console.warn("⚠️ OpenAI API key not found. SMS generator will use template-based messages.")
+    }
+  }
 
   /**
    * Generate an AI-powered SMS message with placeholders
    */
   async generateMessage(options: SmsGenerationOptions): Promise<GeneratedSmsMessage> {
+    // If no OpenAI key, fall back to templates immediately
+    if (!this.hasOpenAiKey) {
+      console.log("📝 Using template-based SMS generation (no OpenAI key)")
+      return this.generateTemplateMessage(options)
+    }
+
     try {
       const prompt = this.buildPrompt(options)
 
@@ -99,9 +117,10 @@ export class AiSmsGenerator {
         estimatedLength: processedMessage.length,
         tone: options.tone,
         messageType: options.messageType,
+        generatedBy: "ai",
       }
     } catch (error) {
-      console.error("AI SMS generation failed:", error)
+      console.error("AI SMS generation failed, falling back to templates:", error)
       // Fallback to template-based message
       return this.generateTemplateMessage(options)
     }
@@ -111,6 +130,12 @@ export class AiSmsGenerator {
    * Generate multiple message variations
    */
   async generateVariations(options: SmsGenerationOptions, count = 3): Promise<GeneratedSmsMessage[]> {
+    if (!this.hasOpenAiKey) {
+      // Generate template variations by using different tones
+      const tones: Array<"professional" | "friendly" | "urgent" | "casual"> = ["professional", "friendly", "casual"]
+      return tones.slice(0, count).map((tone) => this.generateTemplateMessage({ ...options, tone }))
+    }
+
     const variations = await Promise.all(Array.from({ length: count }, () => this.generateMessage(options)))
     return variations
   }
@@ -215,6 +240,7 @@ Generate only the message text with placeholders intact.`
       estimatedLength: template.length,
       tone: options.tone,
       messageType: options.messageType,
+      generatedBy: "template",
     }
   }
 
@@ -256,6 +282,13 @@ Generate only the message text with placeholders intact.`
    */
   static getMessagePreview(message: string, placeholders: SmsPlaceholders): string {
     return this.replacePlaceholders(message, placeholders)
+  }
+
+  /**
+   * Check if AI generation is available
+   */
+  isAiAvailable(): boolean {
+    return this.hasOpenAiKey
   }
 }
 
@@ -319,6 +352,45 @@ export async function generateWelcomeMessage(
     placeholders,
   }
 
-  const generated = await aiSmsGenerator.generateMessage(options)
-  return AiSmsGenerator.replacePlaceholders(generated.message, placeholders)
+  try {
+    const generated = await aiSmsGenerator.generateMessage(options)
+    const finalMessage = AiSmsGenerator.replacePlaceholders(generated.message, placeholders)
+
+    console.log(`📱 Generated ${generated.generatedBy === "ai" ? "AI" : "template"}-based welcome message`)
+    return finalMessage
+  } catch (error) {
+    console.error("Welcome message generation failed:", error)
+    // Ultimate fallback
+    return `🚗 Hi ${ownerName}! Your ${vehicleMake} ${vehicleModel} (${licensePlate}) has been successfully registered with CyberWatch Security System. Welcome aboard! 🎉`
+  }
+}
+
+/**
+ * Generate SMS recipient welcome message
+ */
+export async function generateRecipientWelcomeMessage(recipientName: string): Promise<string> {
+  const placeholders: SmsPlaceholders = {
+    ownerName: recipientName,
+    systemName: "CyberWatch",
+  }
+
+  const options: SmsGenerationOptions = {
+    messageType: "welcome",
+    tone: "friendly",
+    length: "short",
+    includeEmoji: true,
+    placeholders,
+  }
+
+  try {
+    const generated = await aiSmsGenerator.generateMessage(options)
+    const finalMessage = AiSmsGenerator.replacePlaceholders(generated.message, placeholders)
+
+    console.log(`📱 Generated ${generated.generatedBy === "ai" ? "AI" : "template"}-based recipient welcome`)
+    return finalMessage
+  } catch (error) {
+    console.error("Recipient welcome message generation failed:", error)
+    // Ultimate fallback
+    return `👋 Welcome ${recipientName}! You've been added to CyberWatch SMS notifications. Stay secure with Arkesel! 🔒✨`
+  }
 }
