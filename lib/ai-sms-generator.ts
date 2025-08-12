@@ -87,7 +87,7 @@ export class AiSmsGenerator {
       const { text } = await generateText({
         model: this.model,
         prompt,
-        maxTokens: 150,
+        // maxTokens: 150,
         temperature: 0.7,
       })
 

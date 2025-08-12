@@ -165,7 +165,11 @@ export default function SMSCenter() {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <Link href="/">
-                  <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-cyan-400 hover:text-cyan-300"
+                  >
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back
                   </Button>
@@ -175,7 +179,10 @@ export default function SMSCenter() {
                 </h1>
               </div>
               <div className="flex items-center space-x-4">
-                <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
+                <Badge
+                  variant="secondary"
+                  className="bg-green-500/20 text-green-400 border-green-500/30"
+                >
                   {recipients.filter((r) => r.active).length} Active Recipients
                 </Badge>
                 <span className="text-sm text-gray-300">
@@ -215,72 +222,86 @@ export default function SMSCenter() {
                       />
                       <div className="flex justify-between text-sm text-gray-400">
                         <span>{message.length}/160 characters</span>
-                        <span>Will send to {recipients.filter((r) => r.active).length} recipients</span>
+                        <span>
+                          Will send to{" "}
+                          {recipients.filter((r) => r.active).length} recipients
+                        </span>
                       </div>
                     </div>
 
                     <div className="mt-4 p-4 border border-purple-500/30 rounded-lg bg-purple-500/5">
                       <div className="flex items-center justify-between mb-3">
-                        <h4 className="text-purple-400 font-medium">AI Message Assistant</h4>
+                        <h4 className="text-purple-400 font-medium">
+                          AI Message Assistant
+                        </h4>
                         <Button
                           onClick={generateAIMessage}
                           disabled={isGeneratingMessage}
                           size="sm"
                           className="bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50"
                         >
-                          {isGeneratingMessage ? "Generating..." : "Generate AI Message"}
+                          {isGeneratingMessage
+                            ? "Generating..."
+                            : "Generate AI Message"}
                         </Button>
                       </div>
 
-                      <div className="grid grid-cols-2 md:grid-cols-4 gap-2 mb-3">
-                        <select
-                          className="bg-gray-800 border-gray-700 text-white text-sm rounded px-2 py-1"
-                          value={messageOptions.tone}
-                          onChange={(e) => setMessageOptions((prev) => ({ ...prev, tone: e.target.value as string }))}
-                        >
-                          <option value="professional">Professional</option>
-                          <option value="friendly">Friendly</option>
-                          <option value="urgent">Urgent</option>
-                          <option value="casual">Casual</option>
-                        </select>
+                      <select
+                        className="bg-gray-800 border-gray-700 text-white text-sm rounded px-2 py-1"
+                        value={messageOptions.tone}
+                        onChange={(e) =>
+                          setMessageOptions((prev) => ({
+                            ...prev,
+                            tone: e.target
+                              .value as SmsGenerationOptions["tone"],
+                          }))
+                        }
+                      >
+                        <option value="professional">Professional</option>
+                        <option value="friendly">Friendly</option>
+                        <option value="urgent">Urgent</option>
+                        <option value="casual">Casual</option>
+                      </select>
 
-                        <select
-                          className="bg-gray-800 border-gray-700 text-white text-sm rounded px-2 py-1"
-                          value={messageOptions.length}
-                          onChange={(e) => setMessageOptions((prev) => ({ ...prev, length: e.target.value as string }))}
-                        >
-                          <option value="short">Short</option>
-                          <option value="medium">Medium</option>
-                          <option value="long">Long</option>
-                        </select>
+                      <select
+                        className="bg-gray-800 border-gray-700 text-white text-sm rounded px-2 py-1"
+                        value={messageOptions.length}
+                        onChange={(e) =>
+                          setMessageOptions((prev) => ({
+                            ...prev,
+                            length: e.target
+                              .value as SmsGenerationOptions["length"],
+                          }))
+                        }
+                      >
+                        <option value="short">Short</option>
+                        <option value="medium">Medium</option>
+                        <option value="long">Long</option>
+                      </select>
 
-                        <select
-                          className="bg-gray-800 border-gray-700 text-white text-sm rounded px-2 py-1"
-                          value={messageOptions.messageType}
-                          onChange={(e) =>
-                            setMessageOptions((prev) => ({ ...prev, messageType: e.target.value as string }))
-                          }
-                        >
-                          <option value="detection">Detection</option>
-                          <option value="alert">Alert</option>
-                          <option value="welcome">Welcome</option>
-                          <option value="reminder">Reminder</option>
-                        </select>
-
-                        <label className="flex items-center text-sm text-gray-300">
-                          <input
-                            type="checkbox"
-                            checked={messageOptions.includeEmoji}
-                            onChange={(e) => setMessageOptions((prev) => ({ ...prev, includeEmoji: e.target.checked }))}
-                            className="mr-1"
-                          />
-                          Emojis
-                        </label>
-                      </div>
+                      <select
+                        className="bg-gray-800 border-gray-700 text-white text-sm rounded px-2 py-1"
+                        value={messageOptions.messageType}
+                        onChange={(e) =>
+                          setMessageOptions((prev) => ({
+                            ...prev,
+                            messageType: e.target
+                              .value as SmsGenerationOptions["messageType"],
+                          }))
+                        }
+                      >
+                        <option value="detection">Detection</option>
+                        <option value="alert">Alert</option>
+                        <option value="welcome">Welcome</option>
+                        <option value="reminder">Reminder</option>
+                        <option value="system">System</option>
+                      </select>
 
                       {generatedVariations.length > 0 && (
                         <div className="space-y-2">
-                          <p className="text-sm text-gray-400">Generated variations (click to use):</p>
+                          <p className="text-sm text-gray-400">
+                            Generated variations (click to use):
+                          </p>
                           {generatedVariations.map((variation, index) => (
                             <div
                               key={index}
@@ -318,19 +339,30 @@ export default function SMSCenter() {
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label htmlFor="recipientName" className="text-gray-300">
+                        <Label
+                          htmlFor="recipientName"
+                          className="text-gray-300"
+                        >
                           Name
                         </Label>
                         <Input
                           id="recipientName"
                           placeholder="Contact name"
                           value={newRecipient.name}
-                          onChange={(e) => setNewRecipient((prev) => ({ ...prev, name: e.target.value }))}
+                          onChange={(e) =>
+                            setNewRecipient((prev) => ({
+                              ...prev,
+                              name: e.target.value,
+                            }))
+                          }
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-purple-500"
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label htmlFor="recipientPhone" className="text-gray-300">
+                        <Label
+                          htmlFor="recipientPhone"
+                          className="text-gray-300"
+                        >
                           Phone Number
                         </Label>
                         <Input
@@ -338,7 +370,12 @@ export default function SMSCenter() {
                           type="tel"
                           placeholder="+1-555-0123"
                           value={newRecipient.phone}
-                          onChange={(e) => setNewRecipient((prev) => ({ ...prev, phone: e.target.value }))}
+                          onChange={(e) =>
+                            setNewRecipient((prev) => ({
+                              ...prev,
+                              phone: e.target.value,
+                            }))
+                          }
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-purple-500"
                         />
                       </div>
@@ -346,7 +383,9 @@ export default function SMSCenter() {
 
                     <Button
                       onClick={handleAddRecipient}
-                      disabled={!newRecipient.name.trim() || !newRecipient.phone.trim()}
+                      disabled={
+                        !newRecipient.name.trim() || !newRecipient.phone.trim()
+                      }
                       className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50"
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -366,7 +405,9 @@ export default function SMSCenter() {
                     <Users className="mr-2 h-5 w-5" />
                     SMS Recipients
                   </CardTitle>
-                  <CardDescription className="text-gray-400">Manage notification recipients</CardDescription>
+                  <CardDescription className="text-gray-400">
+                    Manage notification recipients
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
@@ -377,9 +418,13 @@ export default function SMSCenter() {
                       >
                         <div className="flex-1">
                           <div className="flex items-center space-x-2 mb-1">
-                            <p className="text-white font-medium">{recipient.name}</p>
+                            <p className="text-white font-medium">
+                              {recipient.name}
+                            </p>
                             <Badge
-                              variant={recipient.active ? "default" : "secondary"}
+                              variant={
+                                recipient.active ? "default" : "secondary"
+                              }
                               className={
                                 recipient.active
                                   ? "bg-green-500/20 text-green-400 border-green-500/30"
@@ -389,8 +434,12 @@ export default function SMSCenter() {
                               {recipient.active ? "Active" : "Inactive"}
                             </Badge>
                           </div>
-                          <p className="text-gray-400 text-sm">{recipient.phone}</p>
-                          <p className="text-gray-500 text-xs">Last sent: {recipient.lastSent}</p>
+                          <p className="text-gray-400 text-sm">
+                            {recipient.phone}
+                          </p>
+                          <p className="text-gray-500 text-xs">
+                            Last sent: {recipient.lastSent}
+                          </p>
                         </div>
                         <Button
                           variant="ghost"
@@ -408,19 +457,32 @@ export default function SMSCenter() {
               {/* Recent Messages */}
               <Card className="bg-gray-900/50 border-cyan-500/30">
                 <CardHeader>
-                  <CardTitle className="text-cyan-400">Recent Messages</CardTitle>
-                  <CardDescription className="text-gray-400">SMS notification history</CardDescription>
+                  <CardTitle className="text-cyan-400">
+                    Recent Messages
+                  </CardTitle>
+                  <CardDescription className="text-gray-400">
+                    SMS notification history
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   <div className="space-y-3">
                     {recentMessages.map((msg) => (
-                      <div key={msg.id} className="p-3 rounded-lg bg-gray-800/50 border border-gray-700/50">
+                      <div
+                        key={msg.id}
+                        className="p-3 rounded-lg bg-gray-800/50 border border-gray-700/50"
+                      >
                         <div className="flex items-start justify-between mb-2">
-                          <p className="text-white text-sm flex-1 mr-2">{msg.message}</p>
+                          <p className="text-white text-sm flex-1 mr-2">
+                            {msg.message}
+                          </p>
                           <Badge
-                            variant={msg.status === "sent" ? "default" : "destructive"}
+                            variant={
+                              msg.status === "sent" ? "default" : "destructive"
+                            }
                             className={
-                              msg.status === "sent" ? "bg-green-500/20 text-green-400 border-green-500/30" : ""
+                              msg.status === "sent"
+                                ? "bg-green-500/20 text-green-400 border-green-500/30"
+                                : ""
                             }
                           >
                             {msg.status}
@@ -440,5 +502,5 @@ export default function SMSCenter() {
         </div>
       </div>
     </div>
-  )
+  );
 }
