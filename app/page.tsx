@@ -4,13 +4,13 @@ import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Car, Users, Camera, MessageSquare, Activity, Zap, LogOut } from 'lucide-react'
+import { Car, Users, Camera, MessageSquare, Activity, Zap, LogOut } from "lucide-react"
 import { AuthModal } from "@/components/AuthModal"
 import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 
 export default function Dashboard() {
-  const { user, signOut, loading } = useAuth()
+  const { user, profile, signOut, loading } = useAuth()
   const [stats, setStats] = useState({
     totalCars: 0,
     totalUsers: 0,
@@ -87,19 +87,19 @@ export default function Dashboard() {
               </div>
               <nav className="hidden md:flex items-center space-x-6">
                 <button
-                  onClick={() => handleProtectedAction(() => window.location.href = '/camera')}
+                  onClick={() => handleProtectedAction(() => (window.location.href = "/camera"))}
                   className="text-gray-300 hover:text-cyan-400 transition-colors"
                 >
                   Live Feed
                 </button>
                 <button
-                  onClick={() => handleProtectedAction(() => window.location.href = '/cars')}
+                  onClick={() => handleProtectedAction(() => (window.location.href = "/cars"))}
                   className="text-gray-300 hover:text-cyan-400 transition-colors"
                 >
                   Car Registry
                 </button>
                 <button
-                  onClick={() => handleProtectedAction(() => window.location.href = '/sms')}
+                  onClick={() => handleProtectedAction(() => (window.location.href = "/sms"))}
                   className="text-gray-300 hover:text-cyan-400 transition-colors"
                 >
                   SMS Center
@@ -111,11 +111,16 @@ export default function Dashboard() {
                 )}
               </nav>
               <div className="flex items-center space-x-2">
-                {user ? (
+                {user && profile ? (
                   <div className="flex items-center space-x-3">
-                    <span className="text-sm text-gray-300">
-                      Welcome, {user.user_metadata?.first_name || user.email}
-                    </span>
+                    <div className="text-right">
+                      <span className="text-sm text-gray-300 block">
+                        Welcome, {profile.first_name} {profile.last_name}
+                      </span>
+                      <span className="text-xs text-gray-400 capitalize">
+                        {profile.role} • {profile.department}
+                      </span>
+                    </div>
                     <Button
                       onClick={signOut}
                       variant="outline"
@@ -155,7 +160,7 @@ export default function Dashboard() {
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 size="lg"
-                onClick={() => handleProtectedAction(() => window.location.href = '/camera')}
+                onClick={() => handleProtectedAction(() => (window.location.href = "/camera"))}
                 className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600"
               >
                 <Camera className="mr-2 h-5 w-5" />
@@ -164,7 +169,7 @@ export default function Dashboard() {
               <Button
                 size="lg"
                 variant="outline"
-                onClick={() => handleProtectedAction(() => window.location.href = '/cars')}
+                onClick={() => handleProtectedAction(() => (window.location.href = "/cars"))}
                 className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
               >
                 View Database
@@ -217,8 +222,8 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button 
-                  onClick={() => handleProtectedAction(() => window.location.href = '/camera')}
+                <Button
+                  onClick={() => handleProtectedAction(() => (window.location.href = "/camera"))}
                   className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/50"
                 >
                   Access Feed
@@ -237,8 +242,8 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button 
-                  onClick={() => handleProtectedAction(() => window.location.href = '/cars/register')}
+                <Button
+                  onClick={() => handleProtectedAction(() => (window.location.href = "/cars/register"))}
                   className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50"
                 >
                   Register Car
@@ -257,8 +262,8 @@ export default function Dashboard() {
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <Button 
-                  onClick={() => handleProtectedAction(() => window.location.href = '/sms')}
+                <Button
+                  onClick={() => handleProtectedAction(() => (window.location.href = "/sms"))}
                   className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/50"
                 >
                   SMS Center
@@ -280,7 +285,12 @@ export default function Dashboard() {
                 {[
                   { time: "2 min ago", action: "Car detected", details: "License: ABC-123", type: "detection" },
                   { time: "5 min ago", action: "SMS sent", details: "Alert to 3 recipients", type: "notification" },
-                  { time: "12 min ago", action: "New user registered", details: "john.doe@example.com", type: "user" },
+                  {
+                    time: "12 min ago",
+                    action: "New user registered",
+                    details: profile ? `${profile.first_name} ${profile.last_name}` : "john.doe@example.com",
+                    type: "user",
+                  },
                   { time: "18 min ago", action: "Camera online", details: "Camera #3 connected", type: "system" },
                 ].map((activity, index) => (
                   <div
@@ -313,8 +323,8 @@ export default function Dashboard() {
         </main>
       </div>
 
-      <AuthModal 
-        isOpen={authModalOpen} 
+      <AuthModal
+        isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         onSuccess={() => {
           // Refresh the page or update state as needed

@@ -1,31 +1,89 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
-import { User, Mail, Phone, Shield, ArrowLeft, Save, Camera } from "lucide-react"
+import { User, Mail, Phone, Shield, ArrowLeft, Save, Camera, AlertCircle, CheckCircle } from "lucide-react"
+import { AuthModal } from "@/components/AuthModal"
+import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 
 export default function Profile() {
+  const { user, profile, updateProfile, loading } = useAuth()
   const [isEditing, setIsEditing] = useState(false)
-  const [profile, setProfile] = useState({
-    name: "Alex Chen",
-    email: "alex.chen@cyberwatch.com",
-    phone: "+1-555-0199",
-    role: "Security Administrator",
-    department: "Operations",
-    joinDate: "2023-06-15",
-    lastLogin: "2024-01-15 14:30",
+  const [isSaving, setIsSaving] = useState(false)
+  const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [message, setMessage] = useState({ type: "", text: "" })
+
+  const [profileForm, setProfileForm] = useState({
+    first_name: "",
+    last_name: "",
+    phone: "",
+    department: "",
   })
 
-  const handleSave = () => {
-    // Handle profile update
-    console.log("Saving profile:", profile)
+  // Check authentication on mount
+  useEffect(() => {
+    if (!loading && !user) {
+      setAuthModalOpen(true)
+    }
+  }, [user, loading])
+
+  // Update form when profile loads
+  useEffect(() => {
+    if (profile) {
+      setProfileForm({
+        first_name: profile.first_name || "",
+        last_name: profile.last_name || "",
+        phone: profile.phone || "",
+        department: profile.department || "",
+      })
+    }
+  }, [profile])
+
+  const handleSave = async () => {
+    if (!profile) return
+
+    setIsSaving(true)
+    setMessage({ type: "", text: "" })
+
+    try {
+      const { error } = await updateProfile({
+        first_name: profileForm.first_name.trim(),
+        last_name: profileForm.last_name.trim(),
+        phone: profileForm.phone.trim(),
+        department: profileForm.department,
+      })
+
+      if (error) {
+        setMessage({ type: "error", text: "Failed to update profile. Please try again." })
+      } else {
+        setMessage({ type: "success", text: "Profile updated successfully!" })
+        setIsEditing(false)
+        setTimeout(() => setMessage({ type: "", text: "" }), 3000)
+      }
+    } catch (error) {
+      setMessage({ type: "error", text: "An unexpected error occurred." })
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleCancel = () => {
+    if (profile) {
+      setProfileForm({
+        first_name: profile.first_name || "",
+        last_name: profile.last_name || "",
+        phone: profile.phone || "",
+        department: profile.department || "",
+      })
+    }
     setIsEditing(false)
+    setMessage({ type: "", text: "" })
   }
 
   const stats = [
@@ -41,6 +99,29 @@ export default function Profile() {
     { action: "Sent SMS alert", time: "6 hours ago", type: "alert" },
     { action: "Updated camera settings", time: "1 day ago", type: "system" },
   ]
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <User className="h-12 w-12 text-cyan-400 mx-auto mb-4 animate-pulse" />
+          <p className="text-gray-400">Loading profile...</p>
+        </div>
+      </div>
+    )
+  }
+
+  if (!user || !profile) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <AuthModal
+          isOpen={authModalOpen}
+          onClose={() => setAuthModalOpen(false)}
+          onSuccess={() => window.location.reload()}
+        />
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
@@ -62,24 +143,57 @@ export default function Profile() {
                   User Profile
                 </h1>
               </div>
-              <Button
-                onClick={() => (isEditing ? handleSave() : setIsEditing(true))}
-                className={isEditing ? "bg-green-500 hover:bg-green-600" : "bg-cyan-500 hover:bg-cyan-600"}
-              >
+              <div className="flex items-center space-x-2">
                 {isEditing ? (
                   <>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Changes
+                    <Button
+                      onClick={handleCancel}
+                      variant="outline"
+                      size="sm"
+                      className="border-gray-600 text-gray-400 hover:bg-gray-800 bg-transparent"
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      onClick={handleSave}
+                      size="sm"
+                      className="bg-green-500 hover:bg-green-600"
+                      disabled={isSaving}
+                    >
+                      <Save className="h-4 w-4 mr-2" />
+                      {isSaving ? "Saving..." : "Save Changes"}
+                    </Button>
                   </>
                 ) : (
-                  "Edit Profile"
+                  <Button onClick={() => setIsEditing(true)} size="sm" className="bg-cyan-500 hover:bg-cyan-600">
+                    Edit Profile
+                  </Button>
                 )}
-              </Button>
+              </div>
             </div>
           </div>
         </header>
 
         <div className="container mx-auto px-4 py-8">
+          {/* Message Display */}
+          {message.text && (
+            <div
+              className={`mb-6 flex items-center space-x-2 p-4 rounded-lg border ${
+                message.type === "error"
+                  ? "bg-red-500/10 border-red-500/30 text-red-400"
+                  : "bg-green-500/10 border-green-500/30 text-green-400"
+              }`}
+            >
+              {message.type === "error" ? (
+                <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              ) : (
+                <CheckCircle className="h-4 w-4 flex-shrink-0" />
+              )}
+              <span>{message.text}</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             {/* Profile Info */}
             <div className="lg:col-span-2 space-y-6">
@@ -94,12 +208,10 @@ export default function Profile() {
                   <div className="flex items-center space-x-6 mb-6">
                     <div className="relative">
                       <Avatar className="h-20 w-20 border-2 border-cyan-500/50">
-                        <AvatarImage src="/placeholder.svg?height=80&width=80" />
+                        <AvatarImage src={profile.avatar_url || "/placeholder.svg?height=80&width=80"} />
                         <AvatarFallback className="bg-cyan-500/20 text-cyan-400 text-xl">
-                          {profile.name
-                            .split(" ")
-                            .map((n) => n[0])
-                            .join("")}
+                          {profile.first_name?.[0]}
+                          {profile.last_name?.[0]}
                         </AvatarFallback>
                       </Avatar>
                       {isEditing && (
@@ -112,21 +224,36 @@ export default function Profile() {
                       )}
                     </div>
                     <div>
-                      <h2 className="text-2xl font-bold text-white mb-1">{profile.name}</h2>
-                      <p className="text-purple-400 font-medium">{profile.role}</p>
-                      <p className="text-gray-400">{profile.department}</p>
+                      <h2 className="text-2xl font-bold text-white mb-1">
+                        {profile.first_name} {profile.last_name}
+                      </h2>
+                      <p className="text-purple-400 font-medium capitalize">{profile.role}</p>
+                      <p className="text-gray-400 capitalize">{profile.department}</p>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="name" className="text-gray-300">
-                        Full Name
+                      <Label htmlFor="firstName" className="text-gray-300">
+                        First Name
                       </Label>
                       <Input
-                        id="name"
-                        value={profile.name}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, name: e.target.value }))}
+                        id="firstName"
+                        value={profileForm.first_name}
+                        onChange={(e) => setProfileForm((prev) => ({ ...prev, first_name: e.target.value }))}
+                        disabled={!isEditing}
+                        className="bg-gray-800 border-gray-700 text-white disabled:opacity-60"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="lastName" className="text-gray-300">
+                        Last Name
+                      </Label>
+                      <Input
+                        id="lastName"
+                        value={profileForm.last_name}
+                        onChange={(e) => setProfileForm((prev) => ({ ...prev, last_name: e.target.value }))}
                         disabled={!isEditing}
                         className="bg-gray-800 border-gray-700 text-white disabled:opacity-60"
                       />
@@ -139,11 +266,11 @@ export default function Profile() {
                       <Input
                         id="email"
                         type="email"
-                        value={profile.email}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, email: e.target.value }))}
-                        disabled={!isEditing}
+                        value={user.email || ""}
+                        disabled={true}
                         className="bg-gray-800 border-gray-700 text-white disabled:opacity-60"
                       />
+                      <p className="text-xs text-gray-500">Email cannot be changed</p>
                     </div>
 
                     <div className="space-y-2">
@@ -153,8 +280,8 @@ export default function Profile() {
                       <Input
                         id="phone"
                         type="tel"
-                        value={profile.phone}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, phone: e.target.value }))}
+                        value={profileForm.phone}
+                        onChange={(e) => setProfileForm((prev) => ({ ...prev, phone: e.target.value }))}
                         disabled={!isEditing}
                         className="bg-gray-800 border-gray-700 text-white disabled:opacity-60"
                       />
@@ -164,13 +291,32 @@ export default function Profile() {
                       <Label htmlFor="department" className="text-gray-300">
                         Department
                       </Label>
-                      <Input
+                      <select
                         id="department"
-                        value={profile.department}
-                        onChange={(e) => setProfile((prev) => ({ ...prev, department: e.target.value }))}
+                        value={profileForm.department}
+                        onChange={(e) => setProfileForm((prev) => ({ ...prev, department: e.target.value }))}
                         disabled={!isEditing}
-                        className="bg-gray-800 border-gray-700 text-white disabled:opacity-60"
+                        className="w-full bg-gray-800 border-gray-700 text-white rounded-md px-3 py-2 disabled:opacity-60"
+                      >
+                        <option value="">Select Department</option>
+                        <option value="security">Security</option>
+                        <option value="operations">Operations</option>
+                        <option value="management">Management</option>
+                        <option value="it">IT Support</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="role" className="text-gray-300">
+                        Role
+                      </Label>
+                      <Input
+                        id="role"
+                        value={profile.role}
+                        disabled={true}
+                        className="bg-gray-800 border-gray-700 text-white disabled:opacity-60 capitalize"
                       />
+                      <p className="text-xs text-gray-500">Role can only be changed by administrators</p>
                     </div>
                   </div>
 
@@ -178,11 +324,11 @@ export default function Profile() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                       <div>
                         <span className="text-gray-400">Member Since:</span>
-                        <p className="text-white">{new Date(profile.joinDate).toLocaleDateString()}</p>
+                        <p className="text-white">{new Date(profile.created_at).toLocaleDateString()}</p>
                       </div>
                       <div>
-                        <span className="text-gray-400">Last Login:</span>
-                        <p className="text-white">{profile.lastLogin}</p>
+                        <span className="text-gray-400">Last Updated:</span>
+                        <p className="text-white">{new Date(profile.updated_at).toLocaleDateString()}</p>
                       </div>
                     </div>
                   </div>
@@ -222,14 +368,24 @@ export default function Profile() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400">Account Type</span>
-                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Administrator</Badge>
+                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30 capitalize">
+                        {profile.role}
+                      </Badge>
                     </div>
                     <div className="flex items-center justify-between">
                       <span className="text-gray-400">Status</span>
-                      <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Active</Badge>
+                      <Badge
+                        className={
+                          profile.is_active
+                            ? "bg-green-500/20 text-green-400 border-green-500/30"
+                            : "bg-red-500/20 text-red-400 border-red-500/30"
+                        }
+                      >
+                        {profile.is_active ? "Active" : "Inactive"}
+                      </Badge>
                     </div>
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-400">2FA Enabled</span>
+                      <span className="text-gray-400">Email Verified</span>
                       <Badge className="bg-green-500/20 text-green-400 border-green-500/30">Yes</Badge>
                     </div>
                   </div>
