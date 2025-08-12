@@ -14,7 +14,7 @@ import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
-import { sendCarRegistrationSms } from "@/lib/sms-service"
+import { sendCarRegistrationSms, smsService } from "@/lib/sms-service"
 import { generateWelcomeMessage } from "@/lib/ai-sms-generator"
 
 export default function RegisterCar() {
@@ -76,9 +76,12 @@ export default function RegisterCar() {
         return
       }
 
-      // Vehicle registered successfully, now send SMS
+      // Vehicle registered successfully, now send SMS via Arkesel
       setSendingSms(true)
-      setMessage({ type: "success", text: "Vehicle registered successfully! Sending welcome SMS..." })
+      setMessage({
+        type: "success",
+        text: `Vehicle registered successfully! Sending welcome SMS via ${smsService.getProviderName()}...`,
+      })
 
       try {
         // Generate AI-powered welcome message for car registration
@@ -89,7 +92,7 @@ export default function RegisterCar() {
           formData.model,
         )
 
-        // Send SMS using the SMS service
+        // Send SMS using Arkesel SMS service
         const smsResult = await sendCarRegistrationSms(
           formData.ownerName,
           formData.ownerPhone,
@@ -112,19 +115,19 @@ export default function RegisterCar() {
 
           setMessage({
             type: "success",
-            text: `🎉 Vehicle registered and welcome SMS sent to ${formData.ownerName}! Message ID: ${smsResult.messageId}`,
+            text: `🎉 Vehicle registered and welcome SMS sent via ${smsResult.provider} to ${formData.ownerName}! Message ID: ${smsResult.messageId}`,
           })
         } else {
           setMessage({
             type: "success",
-            text: `Vehicle registered successfully! SMS failed to send: ${smsResult.error}`,
+            text: `Vehicle registered successfully! Arkesel SMS failed: ${smsResult.error}`,
           })
         }
       } catch (smsError) {
-        console.error("SMS sending failed:", smsError)
+        console.error("Arkesel SMS sending failed:", smsError)
         setMessage({
           type: "success",
-          text: "Vehicle registered successfully! SMS sending failed - please check SMS configuration.",
+          text: "Vehicle registered successfully! Arkesel SMS sending failed - please check API configuration.",
         })
       }
 
@@ -176,6 +179,11 @@ export default function RegisterCar() {
               <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
                 Register New Vehicle
               </h1>
+              <div className="ml-auto">
+                <span className="text-xs text-gray-400 bg-gray-800 px-2 py-1 rounded">
+                  SMS: {smsService.getProviderName()}
+                </span>
+              </div>
             </div>
           </div>
         </header>
@@ -204,7 +212,7 @@ export default function RegisterCar() {
             {sendingSms && (
               <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-purple-500/10 border-purple-500/30 text-purple-400">
                 <MessageSquare className="h-4 w-4 flex-shrink-0 animate-pulse" />
-                <span>Sending welcome SMS to car owner...</span>
+                <span>Sending welcome SMS via Arkesel to car owner...</span>
               </div>
             )}
 
@@ -215,7 +223,7 @@ export default function RegisterCar() {
                   Vehicle Information
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Enter the vehicle and owner details. Owner will receive an instant SMS confirmation! 📱
+                  Enter the vehicle and owner details. Owner will receive an instant SMS confirmation via Arkesel! 📱
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -343,19 +351,19 @@ export default function RegisterCar() {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label htmlFor="ownerPhone" className="text-gray-300">
-                          Phone Number * (for SMS confirmation)
+                          Phone Number * (for Arkesel SMS)
                         </Label>
                         <Input
                           id="ownerPhone"
                           type="tel"
-                          placeholder="+1-555-0123"
+                          placeholder="0241234567 or +233241234567"
                           value={formData.ownerPhone}
                           onChange={(e) => handleInputChange("ownerPhone", e.target.value)}
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
                           disabled={loading}
                         />
-                        <p className="text-xs text-gray-500">📱 Owner will receive instant SMS confirmation</p>
+                        <p className="text-xs text-gray-500">📱 Owner will receive instant SMS via Arkesel</p>
                       </div>
 
                       <div className="space-y-2">
@@ -416,7 +424,7 @@ export default function RegisterCar() {
                       {sendingSms ? (
                         <>
                           <MessageSquare className="h-4 w-4 mr-2 animate-pulse" />
-                          Sending SMS...
+                          Sending via Arkesel...
                         </>
                       ) : loading ? (
                         <>

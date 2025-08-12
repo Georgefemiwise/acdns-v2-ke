@@ -1,6 +1,6 @@
 // =============================================
 // SMS SERVICE INTEGRATION
-// Supports multiple SMS providers (Twilio, Vonage, etc.)
+// Supports Arkesel and other SMS providers
 // =============================================
 
 interface SmsProvider {
@@ -15,25 +15,72 @@ interface SmsResult {
   provider: string
 }
 
-// Twilio SMS Provider
+// Arkesel SMS Provider
+class ArkeselProvider implements SmsProvider {
+  name = "Arkesel"
+
+  async send(to: string, message: string): Promise<SmsResult> {
+    try {
+      const response = await fetch("https://sms.arkesel.com/api/v2/sms/send", {
+        method: "POST",
+        headers: {
+          "api-key": process.env.ARKESEL_API_KEY || "",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          sender: process.env.ARKESEL_SENDER_ID || "CyberWatch",
+          message: message,
+          recipients: [to.replace("+", "")], // Arkesel expects array of numbers without +
+          sandbox: process.env.NODE_ENV !== "production", // Use sandbox in development
+        }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok && data.code === "ok") {
+        return {
+          success: true,
+          messageId: data.data?.id || `arkesel_${Date.now()}`,
+          provider: this.name,
+        }
+      } else {
+        return {
+          success: false,
+          error: data.message || `HTTP ${response.status}`,
+          provider: this.name,
+        }
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : "Unknown error",
+        provider: this.name,
+      }
+    }
+  }
+}
+
+// Twilio SMS Provider (backup)
 class TwilioProvider implements SmsProvider {
   name = "Twilio"
 
   async send(to: string, message: string): Promise<SmsResult> {
     try {
-      // In a real app, you'd use the Twilio SDK
-      const response = await fetch("https://api.twilio.com/2010-04-01/Accounts/YOUR_ACCOUNT_SID/Messages.json", {
-        method: "POST",
-        headers: {
-          Authorization: `Basic ${btoa(`YOUR_ACCOUNT_SID:YOUR_AUTH_TOKEN`)}`,
-          "Content-Type": "application/x-www-form-urlencoded",
+      const response = await fetch(
+        `https://api.twilio.com/2010-04-01/Accounts/${process.env.TWILIO_ACCOUNT_SID}/Messages.json`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${btoa(`${process.env.TWILIO_ACCOUNT_SID}:${process.env.TWILIO_AUTH_TOKEN}`)}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+          },
+          body: new URLSearchParams({
+            From: process.env.TWILIO_PHONE_NUMBER || "",
+            To: to,
+            Body: message,
+          }),
         },
-        body: new URLSearchParams({
-          From: "YOUR_TWILIO_NUMBER",
-          To: to,
-          Body: message,
-        }),
-      })
+      )
 
       if (response.ok) {
         const data = await response.json()
@@ -59,51 +106,6 @@ class TwilioProvider implements SmsProvider {
   }
 }
 
-// Vonage (Nexmo) SMS Provider
-class VonageProvider implements SmsProvider {
-  name = "Vonage"
-
-  async send(to: string, message: string): Promise<SmsResult> {
-    try {
-      const response = await fetch("https://rest.nexmo.com/sms/json", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          from: "CyberWatch",
-          to: to.replace("+", ""),
-          text: message,
-          api_key: "YOUR_VONAGE_API_KEY",
-          api_secret: "YOUR_VONAGE_API_SECRET",
-        }),
-      })
-
-      const data = await response.json()
-
-      if (data.messages && data.messages[0].status === "0") {
-        return {
-          success: true,
-          messageId: data.messages[0]["message-id"],
-          provider: this.name,
-        }
-      } else {
-        return {
-          success: false,
-          error: data.messages?.[0]?.["error-text"] || "Unknown error",
-          provider: this.name,
-        }
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : "Unknown error",
-        provider: this.name,
-      }
-    }
-  }
-}
-
 // Mock SMS Provider for development
 class MockSmsProvider implements SmsProvider {
   name = "Mock SMS"
@@ -112,15 +114,15 @@ class MockSmsProvider implements SmsProvider {
     // Simulate API delay
     await new Promise((resolve) => setTimeout(resolve, 1000))
 
-    console.log(`📱 SMS sent to ${to}: ${message}`)
+    console.log(`📱 [ARKESEL MOCK] SMS sent to ${to}: ${message}`)
 
     // Simulate 95% success rate
     const success = Math.random() > 0.05
 
     return {
       success,
-      messageId: success ? `mock_${Date.now()}` : undefined,
-      error: success ? undefined : "Mock SMS failure",
+      messageId: success ? `mock_arkesel_${Date.now()}` : undefined,
+      error: success ? undefined : "Mock Arkesel SMS failure",
       provider: this.name,
     }
   }
@@ -131,20 +133,19 @@ class SmsService {
   private provider: SmsProvider
 
   constructor() {
-    // Choose provider based on environment
-    if (process.env.NODE_ENV === "production") {
-      // Use real SMS provider in production
-      if (process.env.TWILIO_ACCOUNT_SID) {
-        this.provider = new TwilioProvider()
-      } else if (process.env.VONAGE_API_KEY) {
-        this.provider = new VonageProvider()
-      } else {
-        this.provider = new MockSmsProvider()
-      }
+    // Choose provider based on environment and available credentials
+    if (process.env.ARKESEL_API_KEY) {
+      // Primary: Use Arkesel if API key is available
+      this.provider = new ArkeselProvider()
+    } else if (process.env.TWILIO_ACCOUNT_SID) {
+      // Fallback: Use Twilio if available
+      this.provider = new TwilioProvider()
     } else {
-      // Use mock provider in development
+      // Development: Use mock provider
       this.provider = new MockSmsProvider()
     }
+
+    console.log(`📱 SMS Service initialized with provider: ${this.provider.name}`)
   }
 
   async sendSms(to: string, message: string): Promise<SmsResult> {
@@ -159,6 +160,7 @@ class SmsService {
       }
     }
 
+    console.log(`📱 Sending SMS via ${this.provider.name} to ${cleanPhone}`)
     return await this.provider.send(cleanPhone, message)
   }
 
@@ -166,9 +168,20 @@ class SmsService {
     // Remove all non-digit characters except +
     let cleaned = phone.replace(/[^\d+]/g, "")
 
-    // Add + if not present and number looks international
-    if (!cleaned.startsWith("+") && cleaned.length > 10) {
-      cleaned = "+" + cleaned
+    // For Arkesel, we typically need Ghana format
+    if (!cleaned.startsWith("+")) {
+      // If it starts with 0, replace with +233 (Ghana)
+      if (cleaned.startsWith("0")) {
+        cleaned = "+233" + cleaned.substring(1)
+      }
+      // If it's 9 digits, assume it's Ghana without country code
+      else if (cleaned.length === 9) {
+        cleaned = "+233" + cleaned
+      }
+      // If it's 10+ digits, add +
+      else if (cleaned.length >= 10) {
+        cleaned = "+" + cleaned
+      }
     }
 
     return cleaned
@@ -176,12 +189,16 @@ class SmsService {
 
   private isValidPhoneNumber(phone: string): boolean {
     // Basic phone number validation
-    const phoneRegex = /^\+?[1-9]\d{1,14}$/
+    const phoneRegex = /^\+?[1-9]\d{8,14}$/
     return phoneRegex.test(phone)
   }
 
   getProviderName(): string {
     return this.provider.name
+  }
+
+  isArkeselActive(): boolean {
+    return this.provider instanceof ArkeselProvider
   }
 }
 
@@ -202,7 +219,7 @@ export async function sendCarRegistrationSms(
 }
 
 export async function sendWelcomeSms(recipientName: string, recipientPhone: string): Promise<SmsResult> {
-  const message = `👋 Welcome ${recipientName}! You've been added to CyberWatch SMS notifications. Stay secure! 🔒✨`
+  const message = `👋 Welcome ${recipientName}! You've been added to CyberWatch SMS notifications. Stay secure with Arkesel! 🔒✨`
 
   return await smsService.sendSms(recipientPhone, message)
 }
@@ -216,4 +233,31 @@ export async function sendDetectionAlert(
   const message = `🚨 ALERT: Vehicle ${licensePlate} detected at ${location} with ${confidence}% confidence. Time: ${new Date().toLocaleString()}`
 
   return await smsService.sendSms(recipientPhone, message)
+}
+
+// Arkesel specific utilities
+export async function sendBulkSms(
+  recipients: string[],
+  message: string,
+): Promise<{ success: number; failed: number; results: SmsResult[] }> {
+  const results: SmsResult[] = []
+  let success = 0
+  let failed = 0
+
+  // Send SMS to each recipient
+  for (const recipient of recipients) {
+    const result = await smsService.sendSms(recipient, message)
+    results.push(result)
+
+    if (result.success) {
+      success++
+    } else {
+      failed++
+    }
+
+    // Small delay between messages to avoid rate limiting
+    await new Promise((resolve) => setTimeout(resolve, 100))
+  }
+
+  return { success, failed, results }
 }
