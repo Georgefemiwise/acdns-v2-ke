@@ -1,65 +1,95 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Car, Search, Plus, ArrowLeft, Edit, Trash2 } from "lucide-react"
+import { Car, Search, Plus, ArrowLeft, Edit, Trash2, AlertCircle } from "lucide-react"
+import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
 
-export default function CarsDatabase() {
-  const [searchTerm, setSearchTerm] = useState("")
+interface Vehicle {
+  id: string
+  license_plate: string
+  make: string
+  model: string
+  year: number
+  color: string
+  owner_name: string
+  owner_phone: string
+  owner_email: string
+  status: string
+  created_at: string
+}
 
-  const cars = [
-    {
-      id: 1,
-      license: "ABC-123",
-      make: "Tesla",
-      model: "Model 3",
-      year: 2023,
-      color: "White",
-      owner: "John Doe",
-      phone: "+1-555-0123",
-      email: "john.doe@email.com",
-      lastSeen: "2024-01-15 14:30",
-      status: "active",
-    },
-    {
-      id: 2,
-      license: "XYZ-789",
-      make: "BMW",
-      model: "X5",
-      year: 2022,
-      color: "Black",
-      owner: "Jane Smith",
-      phone: "+1-555-0456",
-      email: "jane.smith@email.com",
-      lastSeen: "2024-01-15 12:15",
-      status: "active",
-    },
-    {
-      id: 3,
-      license: "DEF-456",
-      make: "Audi",
-      model: "A4",
-      year: 2021,
-      color: "Silver",
-      owner: "Mike Johnson",
-      phone: "+1-555-0789",
-      email: "mike.j@email.com",
-      lastSeen: "2024-01-14 16:45",
-      status: "inactive",
-    },
-  ]
+export default function CarsDatabase() {
+  const { user } = useAuth()
+  const [searchTerm, setSearchTerm] = useState("")
+  const [cars, setCars] = useState<Vehicle[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  useEffect(() => {
+    if (user) {
+      fetchCars()
+    }
+  }, [user])
+
+  const fetchCars = async () => {
+    try {
+      setLoading(true)
+      const { data, error } = await supabase.from("vehicles").select("*").order("created_at", { ascending: false })
+
+      if (error) {
+        setError(`Failed to load vehicles: ${error.message}`)
+      } else {
+        setCars(data || [])
+      }
+    } catch (error) {
+      console.error("Error fetching cars:", error)
+      setError("An unexpected error occurred")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const deleteCar = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this vehicle?")) return
+
+    try {
+      const { error } = await supabase.from("vehicles").delete().eq("id", id)
+
+      if (error) {
+        alert(`Failed to delete vehicle: ${error.message}`)
+      } else {
+        setCars(cars.filter((car) => car.id !== id))
+      }
+    } catch (error) {
+      console.error("Error deleting car:", error)
+      alert("An unexpected error occurred")
+    }
+  }
 
   const filteredCars = cars.filter(
     (car) =>
-      car.license.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      car.owner.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      car.license_plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      car.owner_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       car.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
       car.model.toLowerCase().includes(searchTerm.toLowerCase()),
   )
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
+        <div className="text-center">
+          <Car className="h-12 w-12 text-cyan-400 mx-auto mb-4" />
+          <p className="text-gray-400">Please log in to access the car database</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
@@ -92,6 +122,14 @@ export default function CarsDatabase() {
         </header>
 
         <div className="container mx-auto px-4 py-8">
+          {/* Error Display */}
+          {error && (
+            <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
           {/* Search and Stats */}
           <div className="mb-8">
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between mb-6">
@@ -115,98 +153,109 @@ export default function CarsDatabase() {
             </div>
           </div>
 
-          {/* Cars Grid */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredCars.map((car) => (
-              <Card
-                key={car.id}
-                className="bg-gray-900/50 border-cyan-500/30 hover:border-cyan-400/50 transition-all duration-300"
-              >
-                <CardHeader>
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-cyan-400 flex items-center">
-                      <Car className="mr-2 h-5 w-5" />
-                      {car.license}
-                    </CardTitle>
-                    <Badge
-                      variant={car.status === "active" ? "default" : "secondary"}
-                      className={
-                        car.status === "active"
-                          ? "bg-green-500/20 text-green-400 border-green-500/30"
-                          : "bg-gray-500/20 text-gray-400 border-gray-500/30"
-                      }
-                    >
-                      {car.status}
-                    </Badge>
-                  </div>
-                  <CardDescription className="text-gray-400">
-                    {car.year} {car.make} {car.model}
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="space-y-3">
-                    <div className="grid grid-cols-2 gap-2 text-sm">
-                      <div>
-                        <span className="text-gray-400">Color:</span>
-                        <p className="text-white">{car.color}</p>
-                      </div>
-                      <div>
-                        <span className="text-gray-400">Year:</span>
-                        <p className="text-white">{car.year}</p>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-gray-700 pt-3">
-                      <h4 className="text-purple-400 font-medium mb-2">Owner Information</h4>
-                      <div className="space-y-1 text-sm">
-                        <p className="text-white">{car.owner}</p>
-                        <p className="text-gray-400">{car.phone}</p>
-                        <p className="text-gray-400">{car.email}</p>
-                      </div>
-                    </div>
-
-                    <div className="border-t border-gray-700 pt-3">
-                      <span className="text-gray-400 text-sm">Last Seen:</span>
-                      <p className="text-white text-sm">{car.lastSeen}</p>
-                    </div>
-
-                    <div className="flex space-x-2 pt-2">
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="flex-1 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
-                      >
-                        <Edit className="h-3 w-3 mr-1" />
-                        Edit
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="border-red-500/50 text-red-400 hover:bg-red-500/10 bg-transparent"
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
-
-          {filteredCars.length === 0 && (
+          {/* Loading State */}
+          {loading ? (
             <div className="text-center py-12">
-              <Car className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-              <h3 className="text-xl font-semibold text-gray-400 mb-2">No cars found</h3>
-              <p className="text-gray-500 mb-6">
-                {searchTerm ? "Try adjusting your search terms" : "Start by adding your first vehicle"}
-              </p>
-              <Link href="/cars/register">
-                <Button className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add First Car
-                </Button>
-              </Link>
+              <Car className="h-16 w-16 text-gray-600 mx-auto mb-4 animate-pulse" />
+              <p className="text-gray-400">Loading vehicles...</p>
             </div>
+          ) : (
+            <>
+              {/* Cars Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {filteredCars.map((car) => (
+                  <Card
+                    key={car.id}
+                    className="bg-gray-900/50 border-cyan-500/30 hover:border-cyan-400/50 transition-all duration-300"
+                  >
+                    <CardHeader>
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-cyan-400 flex items-center">
+                          <Car className="mr-2 h-5 w-5" />
+                          {car.license_plate}
+                        </CardTitle>
+                        <Badge
+                          variant={car.status === "active" ? "default" : "secondary"}
+                          className={
+                            car.status === "active"
+                              ? "bg-green-500/20 text-green-400 border-green-500/30"
+                              : "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                          }
+                        >
+                          {car.status}
+                        </Badge>
+                      </div>
+                      <CardDescription className="text-gray-400">
+                        {car.year} {car.make} {car.model}
+                      </CardDescription>
+                    </CardHeader>
+                    <CardContent>
+                      <div className="space-y-3">
+                        <div className="grid grid-cols-2 gap-2 text-sm">
+                          <div>
+                            <span className="text-gray-400">Color:</span>
+                            <p className="text-white capitalize">{car.color}</p>
+                          </div>
+                          <div>
+                            <span className="text-gray-400">Year:</span>
+                            <p className="text-white">{car.year}</p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-gray-700 pt-3">
+                          <h4 className="text-purple-400 font-medium mb-2">Owner Information</h4>
+                          <div className="space-y-1 text-sm">
+                            <p className="text-white">{car.owner_name}</p>
+                            <p className="text-gray-400">{car.owner_phone}</p>
+                            <p className="text-gray-400">{car.owner_email}</p>
+                          </div>
+                        </div>
+
+                        <div className="border-t border-gray-700 pt-3">
+                          <span className="text-gray-400 text-sm">Added:</span>
+                          <p className="text-white text-sm">{new Date(car.created_at).toLocaleDateString()}</p>
+                        </div>
+
+                        <div className="flex space-x-2 pt-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="flex-1 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
+                          >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => deleteCar(car.id)}
+                            className="border-red-500/50 text-red-400 hover:bg-red-500/10 bg-transparent"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+
+              {filteredCars.length === 0 && !loading && (
+                <div className="text-center py-12">
+                  <Car className="h-16 w-16 text-gray-600 mx-auto mb-4" />
+                  <h3 className="text-xl font-semibold text-gray-400 mb-2">No cars found</h3>
+                  <p className="text-gray-500 mb-6">
+                    {searchTerm ? "Try adjusting your search terms" : "Start by adding your first vehicle"}
+                  </p>
+                  <Link href="/cars/register">
+                    <Button className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Add First Car
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

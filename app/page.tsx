@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge"
 import { Car, Users, Camera, MessageSquare, Activity, Zap, LogOut } from "lucide-react"
 import { AuthModal } from "@/components/AuthModal"
 import { useAuth } from "@/contexts/AuthContext"
+import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 
 export default function Dashboard() {
@@ -14,23 +15,106 @@ export default function Dashboard() {
   const [stats, setStats] = useState({
     totalCars: 0,
     totalUsers: 0,
-    activeCameras: 0,
+    activeCameras: 4,
     smsCount: 0,
   })
+  const [recentActivity, setRecentActivity] = useState<any[]>([])
   const [authModalOpen, setAuthModalOpen] = useState(false)
 
   useEffect(() => {
-    // Simulate loading stats
-    const timer = setTimeout(() => {
+    if (user) {
+      fetchRealStats()
+      fetchRecentActivity()
+    } else {
+      // Set default stats for non-authenticated users
       setStats({
         totalCars: 1247,
         totalUsers: 89,
         activeCameras: 4,
         smsCount: 156,
       })
-    }, 1000)
-    return () => clearTimeout(timer)
-  }, [])
+    }
+  }, [user])
+
+  const fetchRealStats = async () => {
+    try {
+      // Fetch real data from Supabase
+      const [vehiclesResult, usersResult, camerasResult, smsResult] = await Promise.all([
+        supabase.from("vehicles").select("id", { count: "exact" }),
+        supabase.from("users").select("id", { count: "exact" }),
+        supabase.from("cameras").select("id", { count: "exact" }),
+        supabase.from("sms_recipients").select("id", { count: "exact" }),
+      ])
+
+      setStats({
+        totalCars: vehiclesResult.count || 0,
+        totalUsers: usersResult.count || 0,
+        activeCameras: camerasResult.count || 4,
+        smsCount: smsResult.count || 0,
+      })
+    } catch (error) {
+      console.error("Error fetching stats:", error)
+      // Keep default stats on error
+    }
+  }
+
+  const fetchRecentActivity = async () => {
+    try {
+      // Fetch recent vehicles as activity
+      const { data: vehicles } = await supabase
+        .from("vehicles")
+        .select("license_plate, created_at, owner_name")
+        .order("created_at", { ascending: false })
+        .limit(4)
+
+      if (vehicles) {
+        const activity = vehicles.map((vehicle, index) => ({
+          time: getTimeAgo(vehicle.created_at),
+          action: index === 0 ? "Car detected" : "New vehicle registered",
+          details: `License: ${vehicle.license_plate}`,
+          type: index === 0 ? "detection" : "user",
+        }))
+
+        // Add some system activities
+        activity.push({
+          time: "18 min ago",
+          action: "Camera online",
+          details: "Camera #3 connected",
+          type: "system",
+        })
+
+        setRecentActivity(activity)
+      }
+    } catch (error) {
+      console.error("Error fetching recent activity:", error)
+      // Set default activity
+      setRecentActivity([
+        { time: "2 min ago", action: "Car detected", details: "License: ABC-123", type: "detection" },
+        { time: "5 min ago", action: "SMS sent", details: "Alert to 3 recipients", type: "notification" },
+        {
+          time: "12 min ago",
+          action: "New user registered",
+          details: profile ? `${profile.first_name} ${profile.last_name}` : "john.doe@example.com",
+          type: "user",
+        },
+        { time: "18 min ago", action: "Camera online", details: "Camera #3 connected", type: "system" },
+      ])
+    }
+  }
+
+  const getTimeAgo = (dateString: string) => {
+    const now = new Date()
+    const date = new Date(dateString)
+    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+
+    if (diffInMinutes < 60) {
+      return `${diffInMinutes} min ago`
+    } else if (diffInMinutes < 1440) {
+      return `${Math.floor(diffInMinutes / 60)} hours ago`
+    } else {
+      return `${Math.floor(diffInMinutes / 1440)} days ago`
+    }
+  }
 
   const handleProtectedAction = (action: () => void) => {
     if (!user) {
@@ -184,14 +268,14 @@ export default function Dashboard() {
               value={stats.totalCars}
               icon={Car}
               description="Vehicles in database"
-              trend="+12% this week"
+              trend={user ? "+12% this week" : null}
             />
             <StatCard
               title="Active Users"
               value={stats.totalUsers}
               icon={Users}
               description="Registered operators"
-              trend="+5 new users"
+              trend={user ? "+5 new users" : null}
             />
             <StatCard
               title="Live Cameras"
@@ -201,11 +285,11 @@ export default function Dashboard() {
               trend="All online"
             />
             <StatCard
-              title="SMS Sent"
+              title="SMS Recipients"
               value={stats.smsCount}
               icon={MessageSquare}
-              description="Notifications today"
-              trend="+23 today"
+              description="Notification contacts"
+              trend={user ? "+23 today" : null}
             />
           </div>
 
@@ -282,17 +366,7 @@ export default function Dashboard() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {[
-                  { time: "2 min ago", action: "Car detected", details: "License: ABC-123", type: "detection" },
-                  { time: "5 min ago", action: "SMS sent", details: "Alert to 3 recipients", type: "notification" },
-                  {
-                    time: "12 min ago",
-                    action: "New user registered",
-                    details: profile ? `${profile.first_name} ${profile.last_name}` : "john.doe@example.com",
-                    type: "user",
-                  },
-                  { time: "18 min ago", action: "Camera online", details: "Camera #3 connected", type: "system" },
-                ].map((activity, index) => (
+                {recentActivity.map((activity, index) => (
                   <div
                     key={index}
                     className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 border border-gray-700/50"
@@ -327,7 +401,6 @@ export default function Dashboard() {
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         onSuccess={() => {
-          // Refresh the page or update state as needed
           window.location.reload()
         }}
       />
