@@ -72,19 +72,73 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     try {
+      setLoading(true) // Ensure loading state is set
+
       const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
 
       if (error) {
         console.error("Error fetching user profile:", error)
-        // If profile doesn't exist, create a basic one
-        if (error.code === "PGRST116") {
-          console.log("Profile not found, user may need to complete signup")
+
+        // If profile doesn't exist, create a basic one from auth user
+        if (error.code === "PGRST116" || error.message.includes("table") || error.message.includes("does not exist")) {
+          console.log("Profile not found or table missing, creating basic profile from auth data")
+
+          // Get user data from auth
+          const {
+            data: { user },
+          } = await supabase.auth.getUser()
+
+          if (user) {
+            // Create a basic profile object from auth metadata
+            const basicProfile = {
+              id: user.id,
+              email: user.email || "",
+              first_name: user.user_metadata?.first_name || "User",
+              last_name: user.user_metadata?.last_name || "",
+              phone: user.user_metadata?.phone || "",
+              department: user.user_metadata?.department || "",
+              role: "operator",
+              avatar_url: user.user_metadata?.avatar_url || "",
+              is_active: true,
+              created_at: user.created_at || new Date().toISOString(),
+              updated_at: new Date().toISOString(),
+            }
+
+            setProfile(basicProfile)
+            console.log("Using basic profile from auth metadata")
+          }
         }
       } else {
         setProfile(data)
       }
     } catch (error) {
       console.error("Error fetching user profile:", error)
+
+      // Fallback: create basic profile from auth user
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+        if (user) {
+          const fallbackProfile = {
+            id: user.id,
+            email: user.email || "",
+            first_name: user.user_metadata?.first_name || user.email?.split("@")[0] || "User",
+            last_name: user.user_metadata?.last_name || "",
+            phone: "",
+            department: "",
+            role: "operator",
+            avatar_url: "",
+            is_active: true,
+            created_at: user.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+          setProfile(fallbackProfile)
+          console.log("Using fallback profile")
+        }
+      } catch (fallbackError) {
+        console.error("Fallback profile creation failed:", fallbackError)
+      }
     } finally {
       setLoading(false)
     }
