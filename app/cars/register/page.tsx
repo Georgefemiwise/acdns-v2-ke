@@ -9,10 +9,18 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Car, ArrowLeft, Save } from "lucide-react"
+import { Car, ArrowLeft, Save, CheckCircle, AlertCircle } from "lucide-react"
+import { supabase } from "@/lib/supabase"
+import { useAuth } from "@/contexts/AuthContext"
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 
 export default function RegisterCar() {
+  const { user } = useAuth()
+  const router = useRouter()
+  const [loading, setLoading] = useState(false)
+  const [message, setMessage] = useState({ type: "", text: "" })
+
   const [formData, setFormData] = useState({
     license: "",
     make: "",
@@ -25,11 +33,64 @@ export default function RegisterCar() {
     notes: "",
   })
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    // Handle form submission
-    console.log("Car registration data:", formData)
-    // Redirect or show success message
+
+    if (!user) {
+      setMessage({ type: "error", text: "Please log in to register a vehicle" })
+      return
+    }
+
+    setLoading(true)
+    setMessage({ type: "", text: "" })
+
+    try {
+      const { error } = await supabase.from("vehicles").insert({
+        license_plate: formData.license.toUpperCase(),
+        make: formData.make,
+        model: formData.model,
+        year: Number.parseInt(formData.year),
+        color: formData.color,
+        owner_name: formData.ownerName,
+        owner_phone: formData.ownerPhone,
+        owner_email: formData.ownerEmail,
+        notes: formData.notes || null,
+        created_by: user.id,
+        status: "active",
+      })
+
+      if (error) {
+        if (error.code === "23505") {
+          setMessage({ type: "error", text: "A vehicle with this license plate already exists" })
+        } else {
+          setMessage({ type: "error", text: `Failed to register vehicle: ${error.message}` })
+        }
+      } else {
+        setMessage({ type: "success", text: "Vehicle registered successfully!" })
+        // Reset form
+        setFormData({
+          license: "",
+          make: "",
+          model: "",
+          year: "",
+          color: "",
+          ownerName: "",
+          ownerPhone: "",
+          ownerEmail: "",
+          notes: "",
+        })
+
+        // Redirect after 2 seconds
+        setTimeout(() => {
+          router.push("/cars")
+        }, 2000)
+      }
+    } catch (error) {
+      console.error("Error registering vehicle:", error)
+      setMessage({ type: "error", text: "An unexpected error occurred" })
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleInputChange = (field: string, value: string) => {
@@ -60,6 +121,24 @@ export default function RegisterCar() {
 
         <div className="container mx-auto px-4 py-8">
           <div className="max-w-2xl mx-auto">
+            {/* Message Display */}
+            {message.text && (
+              <div
+                className={`mb-6 flex items-center space-x-2 p-4 rounded-lg border ${
+                  message.type === "error"
+                    ? "bg-red-500/10 border-red-500/30 text-red-400"
+                    : "bg-green-500/10 border-green-500/30 text-green-400"
+                }`}
+              >
+                {message.type === "error" ? (
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                ) : (
+                  <CheckCircle className="h-4 w-4 flex-shrink-0" />
+                )}
+                <span>{message.text}</span>
+              </div>
+            )}
+
             <Card className="bg-gray-900/50 border-cyan-500/30">
               <CardHeader>
                 <CardTitle className="text-cyan-400 flex items-center">
@@ -90,6 +169,7 @@ export default function RegisterCar() {
                           onChange={(e) => handleInputChange("license", e.target.value)}
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
+                          disabled={loading}
                         />
                       </div>
 
@@ -97,7 +177,11 @@ export default function RegisterCar() {
                         <Label htmlFor="color" className="text-gray-300">
                           Color *
                         </Label>
-                        <Select value={formData.color} onValueChange={(value) => handleInputChange("color", value)}>
+                        <Select
+                          value={formData.color}
+                          onValueChange={(value) => handleInputChange("color", value)}
+                          disabled={loading}
+                        >
                           <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
                             <SelectValue placeholder="Select color" />
                           </SelectTrigger>
@@ -127,6 +211,7 @@ export default function RegisterCar() {
                           onChange={(e) => handleInputChange("make", e.target.value)}
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
+                          disabled={loading}
                         />
                       </div>
 
@@ -141,6 +226,7 @@ export default function RegisterCar() {
                           onChange={(e) => handleInputChange("model", e.target.value)}
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
+                          disabled={loading}
                         />
                       </div>
 
@@ -158,6 +244,7 @@ export default function RegisterCar() {
                           onChange={(e) => handleInputChange("year", e.target.value)}
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
+                          disabled={loading}
                         />
                       </div>
                     </div>
@@ -180,6 +267,7 @@ export default function RegisterCar() {
                         onChange={(e) => handleInputChange("ownerName", e.target.value)}
                         className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                         required
+                        disabled={loading}
                       />
                     </div>
 
@@ -196,6 +284,7 @@ export default function RegisterCar() {
                           onChange={(e) => handleInputChange("ownerPhone", e.target.value)}
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
+                          disabled={loading}
                         />
                       </div>
 
@@ -211,6 +300,7 @@ export default function RegisterCar() {
                           onChange={(e) => handleInputChange("ownerEmail", e.target.value)}
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
+                          disabled={loading}
                         />
                       </div>
                     </div>
@@ -232,6 +322,7 @@ export default function RegisterCar() {
                         value={formData.notes}
                         onChange={(e) => handleInputChange("notes", e.target.value)}
                         className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500 min-h-[100px]"
+                        disabled={loading}
                       />
                     </div>
                   </div>
@@ -242,6 +333,7 @@ export default function RegisterCar() {
                       <Button
                         variant="outline"
                         className="border-gray-600 text-gray-400 hover:bg-gray-800 bg-transparent"
+                        disabled={loading}
                       >
                         Cancel
                       </Button>
@@ -249,9 +341,10 @@ export default function RegisterCar() {
                     <Button
                       type="submit"
                       className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600"
+                      disabled={loading}
                     >
                       <Save className="h-4 w-4 mr-2" />
-                      Register Vehicle
+                      {loading ? "Registering..." : "Register Vehicle"}
                     </Button>
                   </div>
                 </form>

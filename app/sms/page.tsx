@@ -7,19 +7,32 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Send, Users, ArrowLeft, Plus, Trash2 } from 'lucide-react'
+import { MessageSquare, Send, Users, ArrowLeft, Plus, Trash2, CheckCircle, AlertCircle } from "lucide-react"
 import { AuthModal } from "@/components/AuthModal"
 import { useAuth } from "@/contexts/AuthContext"
+import { supabase } from "@/lib/supabase"
 import Link from "next/link"
 
 import { aiSmsGenerator, AiSmsGenerator } from "@/lib/ai-sms-generator"
 import type { SmsGenerationOptions } from "@/lib/ai-sms-generator"
+
+interface SmsRecipient {
+  id: string
+  name: string
+  phone: string
+  is_active: boolean
+  created_at: string
+}
 
 export default function SMSCenter() {
   const { user, loading } = useAuth()
   const [message, setMessage] = useState("")
   const [newRecipient, setNewRecipient] = useState({ name: "", phone: "" })
   const [authModalOpen, setAuthModalOpen] = useState(false)
+  const [recipients, setRecipients] = useState<SmsRecipient[]>([])
+  const [loadingRecipients, setLoadingRecipients] = useState(true)
+  const [error, setError] = useState("")
+  const [success, setSuccess] = useState("")
 
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false)
   const [messageOptions, setMessageOptions] = useState<Partial<SmsGenerationOptions>>({
@@ -37,64 +50,120 @@ export default function SMSCenter() {
     }
   }, [user, loading])
 
-  const recipients = [
-    { id: 1, name: "Security Team", phone: "+1-555-0101", active: true, lastSent: "2024-01-15 14:30" },
-    { id: 2, name: "Manager Office", phone: "+1-555-0102", active: true, lastSent: "2024-01-15 12:15" },
-    { id: 3, name: "Emergency Contact", phone: "+1-555-0103", active: false, lastSent: "2024-01-14 16:45" },
-    { id: 4, name: "Parking Authority", phone: "+1-555-0104", active: true, lastSent: "2024-01-15 09:20" },
-  ]
-
-  const recentMessages = [
-    {
-      id: 1,
-      message: "Car detected: ABC-123 at Main Entrance",
-      recipients: 3,
-      timestamp: "2024-01-15 14:30",
-      status: "sent",
-    },
-    {
-      id: 2,
-      message: "Unauthorized vehicle in restricted zone",
-      recipients: 2,
-      timestamp: "2024-01-15 12:15",
-      status: "sent",
-    },
-    {
-      id: 3,
-      message: "System maintenance scheduled for tonight",
-      recipients: 4,
-      timestamp: "2024-01-15 09:20",
-      status: "sent",
-    },
-    {
-      id: 4,
-      message: "New vehicle registered: XYZ-789",
-      recipients: 1,
-      timestamp: "2024-01-14 16:45",
-      status: "failed",
-    },
-  ]
-
-  const handleSendMessage = () => {
-    if (!user) {
-      setAuthModalOpen(true)
-      return
+  useEffect(() => {
+    if (user) {
+      fetchRecipients()
     }
-    if (!message.trim()) return
-    // Handle sending SMS
-    console.log("Sending message:", message)
-    setMessage("")
+  }, [user])
+
+  const fetchRecipients = async () => {
+    try {
+      setLoadingRecipients(true)
+      const { data, error } = await supabase
+        .from("sms_recipients")
+        .select("*")
+        .order("created_at", { ascending: false })
+
+      if (error) {
+        setError(`Failed to load recipients: ${error.message}`)
+      } else {
+        setRecipients(data || [])
+      }
+    } catch (error) {
+      console.error("Error fetching recipients:", error)
+      setError("An unexpected error occurred")
+    } finally {
+      setLoadingRecipients(false)
+    }
   }
 
-  const handleAddRecipient = () => {
+  const handleSendMessage = async () => {
     if (!user) {
       setAuthModalOpen(true)
       return
     }
-    if (!newRecipient.name.trim() || !newRecipient.phone.trim()) return
-    // Handle adding recipient
-    console.log("Adding recipient:", newRecipient)
-    setNewRecipient({ name: "", phone: "" })
+    if (!message.trim()) {
+      setError("Please enter a message")
+      return
+    }
+
+    try {
+      setError("")
+      setSuccess("")
+
+      // In a real app, you would integrate with an SMS service like Twilio
+      // For now, we'll just simulate sending
+      const activeRecipients = recipients.filter((r) => r.is_active)
+
+      if (activeRecipients.length === 0) {
+        setError("No active recipients found")
+        return
+      }
+
+      // Simulate SMS sending delay
+      await new Promise((resolve) => setTimeout(resolve, 1000))
+
+      setSuccess(`Message sent to ${activeRecipients.length} recipients successfully!`)
+      setMessage("")
+
+      // Clear success message after 3 seconds
+      setTimeout(() => setSuccess(""), 3000)
+    } catch (error) {
+      console.error("Error sending message:", error)
+      setError("Failed to send message")
+    }
+  }
+
+  const handleAddRecipient = async () => {
+    if (!user) {
+      setAuthModalOpen(true)
+      return
+    }
+    if (!newRecipient.name.trim() || !newRecipient.phone.trim()) {
+      setError("Please enter both name and phone number")
+      return
+    }
+
+    try {
+      setError("")
+      const { error } = await supabase.from("sms_recipients").insert({
+        name: newRecipient.name.trim(),
+        phone: newRecipient.phone.trim(),
+        is_active: true,
+        created_by: user.id,
+      })
+
+      if (error) {
+        setError(`Failed to add recipient: ${error.message}`)
+      } else {
+        setSuccess("Recipient added successfully!")
+        setNewRecipient({ name: "", phone: "" })
+        fetchRecipients() // Refresh the list
+        setTimeout(() => setSuccess(""), 3000)
+      }
+    } catch (error) {
+      console.error("Error adding recipient:", error)
+      setError("An unexpected error occurred")
+    }
+  }
+
+  const deleteRecipient = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this recipient?")) return
+
+    try {
+      const { error } = await supabase.from("sms_recipients").delete().eq("id", id)
+
+      if (error) {
+        setError(`Failed to delete recipient: ${error.message}`)
+      } else {
+        setRecipients(recipients.filter((r) => r.id !== id))
+        setSuccess("Recipient deleted successfully!")
+        setTimeout(() => setSuccess(""), 3000)
+      }
+    } catch (error) {
+      console.error("Error deleting recipient:", error)
+      setError("An unexpected error occurred")
+    }
   }
 
   const generateAIMessage = async () => {
@@ -126,10 +195,35 @@ export default function SMSCenter() {
       setGeneratedVariations(messages)
     } catch (error) {
       console.error("Failed to generate AI message:", error)
+      setError("Failed to generate AI message")
     } finally {
       setIsGeneratingMessage(false)
     }
   }
+
+  const recentMessages = [
+    {
+      id: 1,
+      message: "Car detected: ABC-123 at Main Entrance",
+      recipients: recipients.filter((r) => r.is_active).length,
+      timestamp: "2024-01-15 14:30",
+      status: "sent",
+    },
+    {
+      id: 2,
+      message: "Unauthorized vehicle in restricted zone",
+      recipients: 2,
+      timestamp: "2024-01-15 12:15",
+      status: "sent",
+    },
+    {
+      id: 3,
+      message: "System maintenance scheduled for tonight",
+      recipients: recipients.length,
+      timestamp: "2024-01-15 09:20",
+      status: "sent",
+    },
+  ]
 
   if (loading) {
     return (
@@ -145,8 +239,8 @@ export default function SMSCenter() {
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
-        <AuthModal 
-          isOpen={authModalOpen} 
+        <AuthModal
+          isOpen={authModalOpen}
           onClose={() => setAuthModalOpen(false)}
           onSuccess={() => window.location.reload()}
         />
@@ -176,17 +270,30 @@ export default function SMSCenter() {
               </div>
               <div className="flex items-center space-x-4">
                 <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
-                  {recipients.filter((r) => r.active).length} Active Recipients
+                  {recipients.filter((r) => r.is_active).length} Active Recipients
                 </Badge>
-                <span className="text-sm text-gray-300">
-                  {user.user_metadata?.first_name || user.email}
-                </span>
+                <span className="text-sm text-gray-300">{user.user_metadata?.first_name || user.email}</span>
               </div>
             </div>
           </div>
         </header>
 
         <div className="container mx-auto px-4 py-8">
+          {/* Message Display */}
+          {error && (
+            <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-red-500/10 border-red-500/30 text-red-400">
+              <AlertCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {success && (
+            <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-green-500/10 border-green-500/30 text-green-400">
+              <CheckCircle className="h-4 w-4 flex-shrink-0" />
+              <span>{success}</span>
+            </div>
+          )}
+
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* Send Message */}
             <div className="space-y-6">
@@ -215,7 +322,7 @@ export default function SMSCenter() {
                       />
                       <div className="flex justify-between text-sm text-gray-400">
                         <span>{message.length}/160 characters</span>
-                        <span>Will send to {recipients.filter((r) => r.active).length} recipients</span>
+                        <span>Will send to {recipients.filter((r) => r.is_active).length} recipients</span>
                       </div>
                     </div>
 
@@ -369,39 +476,55 @@ export default function SMSCenter() {
                   <CardDescription className="text-gray-400">Manage notification recipients</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-3">
-                    {recipients.map((recipient) => (
-                      <div
-                        key={recipient.id}
-                        className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 border border-gray-700/50"
-                      >
-                        <div className="flex-1">
-                          <div className="flex items-center space-x-2 mb-1">
-                            <p className="text-white font-medium">{recipient.name}</p>
-                            <Badge
-                              variant={recipient.active ? "default" : "secondary"}
-                              className={
-                                recipient.active
-                                  ? "bg-green-500/20 text-green-400 border-green-500/30"
-                                  : "bg-gray-500/20 text-gray-400 border-gray-500/30"
-                              }
-                            >
-                              {recipient.active ? "Active" : "Inactive"}
-                            </Badge>
-                          </div>
-                          <p className="text-gray-400 text-sm">{recipient.phone}</p>
-                          <p className="text-gray-500 text-xs">Last sent: {recipient.lastSent}</p>
-                        </div>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                  {loadingRecipients ? (
+                    <div className="text-center py-4">
+                      <Users className="h-6 w-6 text-cyan-400 mx-auto mb-2 animate-pulse" />
+                      <p className="text-gray-400 text-sm">Loading recipients...</p>
+                    </div>
+                  ) : recipients.length > 0 ? (
+                    <div className="space-y-3">
+                      {recipients.map((recipient) => (
+                        <div
+                          key={recipient.id}
+                          className="flex items-center justify-between p-3 rounded-lg bg-gray-800/50 border border-gray-700/50"
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    ))}
-                  </div>
+                          <div className="flex-1">
+                            <div className="flex items-center space-x-2 mb-1">
+                              <p className="text-white font-medium">{recipient.name}</p>
+                              <Badge
+                                variant={recipient.is_active ? "default" : "secondary"}
+                                className={
+                                  recipient.is_active
+                                    ? "bg-green-500/20 text-green-400 border-green-500/30"
+                                    : "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                                }
+                              >
+                                {recipient.is_active ? "Active" : "Inactive"}
+                              </Badge>
+                            </div>
+                            <p className="text-gray-400 text-sm">{recipient.phone}</p>
+                            <p className="text-gray-500 text-xs">
+                              Added: {new Date(recipient.created_at).toLocaleDateString()}
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => deleteRecipient(recipient.id)}
+                            className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-8">
+                      <Users className="h-12 w-12 text-gray-600 mx-auto mb-3" />
+                      <p className="text-gray-400">No recipients added yet</p>
+                      <p className="text-gray-500 text-sm">Add your first SMS recipient above</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
 
