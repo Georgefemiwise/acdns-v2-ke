@@ -1,11 +1,22 @@
-import { fetch } from "node-fetch"
-import type { SmsPlaceholders } from "./types"
-
 // =============================================
 // AI SMS MESSAGE GENERATOR
 // Uses Hugging Face open-source models for SMS generation
 // Falls back to templates if AI is not available
 // =============================================
+
+export interface SmsPlaceholders {
+  vehicleLicense?: string
+  vehicleMake?: string
+  vehicleModel?: string
+  ownerName?: string
+  ownerPhone?: string
+  cameraName?: string
+  cameraLocation?: string
+  detectionTime?: string
+  confidenceScore?: string
+  systemName?: string
+  operatorName?: string
+}
 
 export interface SmsGenerationOptions {
   messageType: "detection" | "alert" | "welcome" | "reminder" | "system"
@@ -64,7 +75,6 @@ const MESSAGE_TEMPLATES = {
 
 export class AiSmsGenerator {
   private hasHuggingFaceKey: boolean
-  private huggingFaceApiUrl = "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium"
 
   constructor() {
     // Check if Hugging Face API key is available (free tier available)
@@ -79,7 +89,7 @@ export class AiSmsGenerator {
   }
 
   /**
-   * Generate an AI-powered SMS message using Hugging Face
+   * Generate an AI-powered SMS message using Hugging Face API route
    */
   async generateMessage(options: SmsGenerationOptions): Promise<GeneratedSmsMessage> {
     // If no Hugging Face key, fall back to templates immediately
@@ -89,65 +99,41 @@ export class AiSmsGenerator {
     }
 
     try {
-      const prompt = this.buildPrompt(options)
-      const response = await this.callHuggingFaceAPI(prompt)
+      // Call our API route instead of directly calling Hugging Face
+      const response = await fetch("/api/generate-sms", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(options),
+      })
 
-      if (response && response.length > 0) {
-        const generatedText = response[0].generated_text || response[0].text || ""
-        const processedMessage = this.processGeneratedMessage(generatedText, options.placeholders, prompt)
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`)
+      }
 
+      const result = await response.json()
+
+      if (result.success) {
         return {
-          message: processedMessage,
+          message: result.message,
           placeholders: options.placeholders,
-          estimatedLength: processedMessage.length,
+          estimatedLength: result.message.length,
           tone: options.tone,
           messageType: options.messageType,
           generatedBy: "ai",
         }
       } else {
-        throw new Error("No response from Hugging Face API")
+        throw new Error(result.error || "API generation failed")
       }
     } catch (error) {
-      console.error("Hugging Face AI SMS generation failed, falling back to templates:", error)
+      console.error("AI SMS generation failed, falling back to templates:", error)
       return this.generateTemplateMessage(options)
     }
   }
 
   /**
-   * Call Hugging Face Inference API
-   */
-  private async callHuggingFaceAPI(prompt: string): Promise<any> {
-    const apiKey = process.env.HUGGINGFACE_API_KEY || process.env.NEXT_PUBLIC_HUGGINGFACE_API_KEY
-
-    const response = await fetch(this.huggingFaceApiUrl, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${apiKey}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        inputs: prompt,
-        parameters: {
-          max_length: 160,
-          temperature: 0.7,
-          do_sample: true,
-          top_p: 0.9,
-        },
-        options: {
-          wait_for_model: true,
-        },
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error(`Hugging Face API error: ${response.status} ${response.statusText}`)
-    }
-
-    return await response.json()
-  }
-
-  /**
-   * Generate multiple message variations using different models
+   * Generate multiple message variations
    */
   async generateVariations(options: SmsGenerationOptions, count = 3): Promise<GeneratedSmsMessage[]> {
     if (!this.hasHuggingFaceKey) {
@@ -156,115 +142,8 @@ export class AiSmsGenerator {
       return tones.slice(0, count).map((tone) => this.generateTemplateMessage({ ...options, tone }))
     }
 
-    // Try different Hugging Face models for variety
-    const models = ["microsoft/DialoGPT-medium", "facebook/blenderbot-400M-distill", "microsoft/DialoGPT-small"]
-
-    const variations = []
-    for (let i = 0; i < Math.min(count, models.length); i++) {
-      try {
-        this.huggingFaceApiUrl = `https://api-inference.huggingface.co/models/${models[i]}`
-        const variation = await this.generateMessage(options)
-        variations.push(variation)
-      } catch (error) {
-        console.error(`Failed to generate variation with model ${models[i]}:`, error)
-        // Add template fallback for failed variations
-        variations.push(this.generateTemplateMessage(options))
-      }
-    }
-
+    const variations = await Promise.all(Array.from({ length: count }, () => this.generateMessage(options)))
     return variations
-  }
-
-  /**
-   * Build prompt for AI generation
-   */
-  private buildPrompt(options: SmsGenerationOptions): string {
-    const { messageType, tone, length, includeEmoji, placeholders } = options
-
-    const lengthGuide = {
-      short: "under 80 characters",
-      medium: "80-120 characters",
-      long: "120-160 characters",
-    }
-
-    const context = this.buildContextFromPlaceholders(placeholders)
-
-    return `Generate a ${tone} SMS message for ${messageType}. Keep it ${lengthGuide[length]}. ${
-      includeEmoji ? "Include emojis." : "No emojis."
-    }
-
-Context: ${context}
-
-SMS message:`
-  }
-
-  /**
-   * Build context from available placeholders
-   */
-  private buildContextFromPlaceholders(placeholders: SmsPlaceholders): string {
-    const context = []
-
-    if (placeholders.ownerName) {
-      context.push(`Person: ${placeholders.ownerName}`)
-    }
-    if (placeholders.vehicleLicense) {
-      context.push(`Vehicle: ${placeholders.vehicleLicense}`)
-    }
-    if (placeholders.vehicleMake && placeholders.vehicleModel) {
-      context.push(`Car: ${placeholders.vehicleMake} ${placeholders.vehicleModel}`)
-    }
-    if (placeholders.cameraLocation) {
-      context.push(`Location: ${placeholders.cameraLocation}`)
-    }
-    if (placeholders.systemName) {
-      context.push(`System: ${placeholders.systemName}`)
-    }
-
-    return context.join(", ") || "Security system notification"
-  }
-
-  /**
-   * Process generated message to clean it up
-   */
-  private processGeneratedMessage(message: string, placeholders: SmsPlaceholders, originalPrompt: string): string {
-    let processed = message.trim()
-
-    // Remove the original prompt if it appears in the response
-    processed = processed.replace(originalPrompt, "").trim()
-
-    // Clean up common AI artifacts
-    processed = processed.replace(/^(SMS message:|Message:|Text:)/i, "").trim()
-    processed = processed.replace(/\n+/g, " ").trim()
-
-    // Ensure it's not too long for SMS
-    if (processed.length > 160) {
-      processed = processed.substring(0, 157) + "..."
-    }
-
-    // If the message is too short or doesn't make sense, use template
-    if (processed.length < 10 || !this.isValidSmsMessage(processed)) {
-      console.log("Generated message too short or invalid, using template fallback")
-      return this.generateTemplateMessage({
-        messageType: "welcome",
-        tone: "friendly",
-        length: "medium",
-        includeEmoji: true,
-        placeholders,
-      }).message
-    }
-
-    return processed
-  }
-
-  /**
-   * Validate if generated message makes sense
-   */
-  private isValidSmsMessage(message: string): boolean {
-    // Basic validation - message should have some meaningful content
-    const meaningfulWords = ["welcome", "vehicle", "car", "system", "alert", "detected", "registered", "security"]
-    const lowerMessage = message.toLowerCase()
-
-    return meaningfulWords.some((word) => lowerMessage.includes(word)) || message.length > 30
   }
 
   /**
