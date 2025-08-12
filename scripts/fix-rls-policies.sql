@@ -1,194 +1,193 @@
 -- =============================================
 -- Fix Row Level Security Policies
--- Run this in your Supabase SQL Editor
+-- Enable proper CRUD operations for authenticated users
 -- =============================================
+
+-- Enable RLS on all tables
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE vehicles ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cameras ENABLE ROW LEVEL SECURITY;
+ALTER TABLE detections ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sms_recipients ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sms_messages ENABLE ROW LEVEL SECURITY;
+ALTER TABLE sms_delivery_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE system_settings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE activity_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE camera_zones ENABLE ROW LEVEL SECURITY;
 
 -- Drop existing policies if they exist
-DROP POLICY IF EXISTS "Users can view own profile" ON public.users;
-DROP POLICY IF EXISTS "Users can update own profile" ON public.users;
-DROP POLICY IF EXISTS "Users can insert own profile" ON public.users;
-DROP POLICY IF EXISTS "Authenticated users can read cameras" ON public.cameras;
-DROP POLICY IF EXISTS "Authenticated users can read vehicles" ON public.vehicles;
-DROP POLICY IF EXISTS "Authenticated users can read sms_recipients" ON public.sms_recipients;
+DROP POLICY IF EXISTS "Users can view own profile" ON users;
+DROP POLICY IF EXISTS "Users can update own profile" ON users;
+DROP POLICY IF EXISTS "Users can insert own profile" ON users;
+
+DROP POLICY IF EXISTS "Users can view own vehicles" ON vehicles;
+DROP POLICY IF EXISTS "Users can insert own vehicles" ON vehicles;
+DROP POLICY IF EXISTS "Users can update own vehicles" ON vehicles;
+DROP POLICY IF EXISTS "Users can delete own vehicles" ON vehicles;
+
+DROP POLICY IF EXISTS "Users can view cameras" ON cameras;
+DROP POLICY IF EXISTS "Users can manage cameras" ON cameras;
+
+DROP POLICY IF EXISTS "Users can view detections" ON detections;
+DROP POLICY IF EXISTS "Users can manage detections" ON detections;
+
+DROP POLICY IF EXISTS "Users can view own sms_recipients" ON sms_recipients;
+DROP POLICY IF EXISTS "Users can insert own sms_recipients" ON sms_recipients;
+DROP POLICY IF EXISTS "Users can update own sms_recipients" ON sms_recipients;
+DROP POLICY IF EXISTS "Users can delete own sms_recipients" ON sms_recipients;
+
+DROP POLICY IF EXISTS "Users can view sms_messages" ON sms_messages;
+DROP POLICY IF EXISTS "Users can insert sms_messages" ON sms_messages;
+DROP POLICY IF EXISTS "Users can update sms_messages" ON sms_messages;
+
+DROP POLICY IF EXISTS "Users can view sms_delivery_log" ON sms_delivery_log;
+DROP POLICY IF EXISTS "Users can insert sms_delivery_log" ON sms_delivery_log;
 
 -- =============================================
--- USERS TABLE POLICIES
+-- USER POLICIES
 -- =============================================
+CREATE POLICY "Users can view own profile" ON users
+    FOR SELECT USING (auth.uid() = id::uuid);
 
--- Users can read and update their own profile
-CREATE POLICY "Users can view own profile" ON public.users
-    FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON users
+    FOR UPDATE USING (auth.uid() = id::uuid);
 
-CREATE POLICY "Users can update own profile" ON public.users
-    FOR UPDATE USING (auth.uid() = id);
-
--- Allow users to insert their own profile (for signup)
-CREATE POLICY "Users can insert own profile" ON public.users
-    FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON users
+    FOR INSERT WITH CHECK (auth.uid() = id::uuid);
 
 -- =============================================
--- VEHICLES TABLE POLICIES
+-- VEHICLE POLICIES
 -- =============================================
+CREATE POLICY "Users can view own vehicles" ON vehicles
+    FOR SELECT USING (auth.uid()::text = created_by OR created_by IS NULL);
 
--- Authenticated users can read all vehicles
-CREATE POLICY "Authenticated users can read vehicles" ON public.vehicles
-    FOR SELECT TO authenticated USING (true);
+CREATE POLICY "Users can insert own vehicles" ON vehicles
+    FOR INSERT WITH CHECK (auth.uid()::text = created_by OR created_by IS NULL);
 
--- Authenticated users can insert vehicles
-CREATE POLICY "Authenticated users can insert vehicles" ON public.vehicles
-    FOR INSERT TO authenticated WITH CHECK (auth.uid() = created_by);
+CREATE POLICY "Users can update own vehicles" ON vehicles
+    FOR UPDATE USING (auth.uid()::text = created_by OR created_by IS NULL);
 
--- Users can update vehicles they created
-CREATE POLICY "Users can update own vehicles" ON public.vehicles
-    FOR UPDATE TO authenticated USING (auth.uid() = created_by);
-
--- Users can delete vehicles they created
-CREATE POLICY "Users can delete own vehicles" ON public.vehicles
-    FOR DELETE TO authenticated USING (auth.uid() = created_by);
+CREATE POLICY "Users can delete own vehicles" ON vehicles
+    FOR DELETE USING (auth.uid()::text = created_by OR created_by IS NULL);
 
 -- =============================================
--- CAMERAS TABLE POLICIES
+-- CAMERA POLICIES
 -- =============================================
+CREATE POLICY "Users can view cameras" ON cameras
+    FOR SELECT USING (auth.uid() IS NOT NULL);
 
--- Authenticated users can read all cameras
-CREATE POLICY "Authenticated users can read cameras" ON public.cameras
-    FOR SELECT TO authenticated USING (true);
-
--- Authenticated users can insert cameras
-CREATE POLICY "Authenticated users can insert cameras" ON public.cameras
-    FOR INSERT TO authenticated WITH CHECK (auth.uid() = created_by);
-
--- Users can update cameras they created
-CREATE POLICY "Users can update own cameras" ON public.cameras
-    FOR UPDATE TO authenticated USING (auth.uid() = created_by);
-
--- Users can delete cameras they created
-CREATE POLICY "Users can delete own cameras" ON public.cameras
-    FOR DELETE TO authenticated USING (auth.uid() = created_by);
+CREATE POLICY "Users can manage cameras" ON cameras
+    FOR ALL USING (auth.uid() IS NOT NULL);
 
 -- =============================================
--- SMS RECIPIENTS TABLE POLICIES
+-- DETECTION POLICIES
 -- =============================================
+CREATE POLICY "Users can view detections" ON detections
+    FOR SELECT USING (auth.uid() IS NOT NULL);
 
--- Authenticated users can read all SMS recipients
-CREATE POLICY "Authenticated users can read sms_recipients" ON public.sms_recipients
-    FOR SELECT TO authenticated USING (true);
-
--- Authenticated users can insert SMS recipients
-CREATE POLICY "Authenticated users can insert sms_recipients" ON public.sms_recipients
-    FOR INSERT TO authenticated WITH CHECK (auth.uid() = created_by);
-
--- Users can update SMS recipients they created
-CREATE POLICY "Users can update own sms_recipients" ON public.sms_recipients
-    FOR UPDATE TO authenticated USING (auth.uid() = created_by);
-
--- Users can delete SMS recipients they created
-CREATE POLICY "Users can delete own sms_recipients" ON public.sms_recipients
-    FOR DELETE TO authenticated USING (auth.uid() = created_by);
+CREATE POLICY "Users can manage detections" ON detections
+    FOR ALL USING (auth.uid() IS NOT NULL);
 
 -- =============================================
--- DETECTIONS TABLE POLICIES (if it exists)
+-- SMS RECIPIENT POLICIES
 -- =============================================
+CREATE POLICY "Users can view own sms_recipients" ON sms_recipients
+    FOR SELECT USING (auth.uid()::text = created_by OR created_by IS NULL);
 
--- Create detections table if it doesn't exist
-CREATE TABLE IF NOT EXISTS public.detections (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    camera_id UUID NOT NULL REFERENCES public.cameras(id) ON DELETE CASCADE,
-    vehicle_id UUID REFERENCES public.vehicles(id),
-    license_plate VARCHAR(20) NOT NULL,
-    confidence_score DECIMAL(5,4) NOT NULL CHECK (confidence_score >= 0 AND confidence_score <= 1),
-    detection_timestamp TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
-    image_url TEXT,
-    bounding_box JSONB,
-    additional_data JSONB,
-    is_verified BOOLEAN DEFAULT false,
-    verified_by UUID REFERENCES public.users(id),
-    verified_at TIMESTAMP WITH TIME ZONE,
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+CREATE POLICY "Users can insert own sms_recipients" ON sms_recipients
+    FOR INSERT WITH CHECK (auth.uid()::text = created_by OR created_by IS NULL);
 
--- Enable RLS on detections
-ALTER TABLE public.detections ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users can update own sms_recipients" ON sms_recipients
+    FOR UPDATE USING (auth.uid()::text = created_by OR created_by IS NULL);
 
--- Detections policies
-CREATE POLICY "Authenticated users can read detections" ON public.detections
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "System can insert detections" ON public.detections
-    FOR INSERT TO authenticated WITH CHECK (true);
-
-CREATE POLICY "Users can update detections" ON public.detections
-    FOR UPDATE TO authenticated USING (true);
+CREATE POLICY "Users can delete own sms_recipients" ON sms_recipients
+    FOR DELETE USING (auth.uid()::text = created_by OR created_by IS NULL);
 
 -- =============================================
--- SMS MESSAGES TABLE POLICIES (if it exists)
+-- SMS MESSAGE POLICIES
 -- =============================================
+CREATE POLICY "Users can view sms_messages" ON sms_messages
+    FOR SELECT USING (auth.uid() IS NOT NULL);
 
--- Create SMS messages table if it doesn't exist
-CREATE TABLE IF NOT EXISTS public.sms_messages (
-    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-    message_content TEXT NOT NULL,
-    message_type VARCHAR(50) NOT NULL DEFAULT 'detection',
-    recipients_count INTEGER NOT NULL DEFAULT 0,
-    status VARCHAR(20) DEFAULT 'pending' CHECK (status IN ('pending', 'sent', 'failed', 'partial')),
-    sent_at TIMESTAMP WITH TIME ZONE,
-    delivery_status JSONB,
-    related_detection_id UUID REFERENCES public.detections(id),
-    related_vehicle_id UUID REFERENCES public.vehicles(id),
-    sent_by UUID REFERENCES public.users(id),
-    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
-);
+CREATE POLICY "Users can insert sms_messages" ON sms_messages
+    FOR INSERT WITH CHECK (auth.uid()::text = sent_by OR sent_by IS NULL);
 
--- Enable RLS on SMS messages
-ALTER TABLE public.sms_messages ENABLE ROW LEVEL SECURITY;
-
--- SMS messages policies
-CREATE POLICY "Authenticated users can read sms_messages" ON public.sms_messages
-    FOR SELECT TO authenticated USING (true);
-
-CREATE POLICY "Authenticated users can insert sms_messages" ON public.sms_messages
-    FOR INSERT TO authenticated WITH CHECK (auth.uid() = sent_by);
-
-CREATE POLICY "Users can update own sms_messages" ON public.sms_messages
-    FOR UPDATE TO authenticated USING (auth.uid() = sent_by);
+CREATE POLICY "Users can update sms_messages" ON sms_messages
+    FOR UPDATE USING (auth.uid()::text = sent_by OR sent_by IS NULL);
 
 -- =============================================
--- INDEXES FOR PERFORMANCE
+-- SMS DELIVERY LOG POLICIES
 -- =============================================
+CREATE POLICY "Users can view sms_delivery_log" ON sms_delivery_log
+    FOR SELECT USING (auth.uid() IS NOT NULL);
 
--- Add indexes if they don't exist
-CREATE INDEX IF NOT EXISTS idx_vehicles_created_by ON public.vehicles(created_by);
-CREATE INDEX IF NOT EXISTS idx_cameras_created_by ON public.cameras(created_by);
-CREATE INDEX IF NOT EXISTS idx_sms_recipients_created_by ON public.sms_recipients(created_by);
-CREATE INDEX IF NOT EXISTS idx_detections_camera_id ON public.detections(camera_id);
-CREATE INDEX IF NOT EXISTS idx_detections_vehicle_id ON public.detections(vehicle_id);
-CREATE INDEX IF NOT EXISTS idx_detections_timestamp ON public.detections(detection_timestamp DESC);
+CREATE POLICY "Users can insert sms_delivery_log" ON sms_delivery_log
+    FOR INSERT WITH CHECK (auth.uid() IS NOT NULL);
+
+-- =============================================
+-- SYSTEM SETTINGS POLICIES (Admin only)
+-- =============================================
+CREATE POLICY "Admins can manage system_settings" ON system_settings
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM users 
+            WHERE users.id::uuid = auth.uid() 
+            AND users.role = 'administrator'
+        )
+    );
+
+-- =============================================
+-- ACTIVITY LOG POLICIES
+-- =============================================
+CREATE POLICY "Users can view activity_logs" ON activity_logs
+    FOR SELECT USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Users can insert activity_logs" ON activity_logs
+    FOR INSERT WITH CHECK (auth.uid()::text = user_id OR user_id IS NULL);
+
+-- =============================================
+-- CAMERA ZONE POLICIES
+-- =============================================
+CREATE POLICY "Users can view camera_zones" ON camera_zones
+    FOR SELECT USING (auth.uid() IS NOT NULL);
+
+CREATE POLICY "Users can manage camera_zones" ON camera_zones
+    FOR ALL USING (auth.uid() IS NOT NULL);
+
+-- =============================================
+-- CREATE USER PROFILE FUNCTION
+-- Automatically create user profile on signup
+-- =============================================
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.users (id, email, first_name, last_name, role, is_active)
+  VALUES (
+    new.id,
+    new.email,
+    COALESCE(new.raw_user_meta_data->>'first_name', split_part(new.email, '@', 1)),
+    COALESCE(new.raw_user_meta_data->>'last_name', ''),
+    'operator',
+    true
+  );
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Create trigger for new user signup
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE PROCEDURE public.handle_new_user();
 
 -- =============================================
 -- GRANT PERMISSIONS
 -- =============================================
+GRANT USAGE ON SCHEMA public TO anon, authenticated;
+GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated;
+GRANT ALL ON ALL SEQUENCES IN SCHEMA public TO authenticated;
 
--- Grant usage on sequences
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO authenticated;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO anon;
+-- Grant specific permissions for anon users (for signup)
+GRANT INSERT ON users TO anon;
 
--- Grant permissions on tables
-GRANT ALL ON public.users TO authenticated;
-GRANT ALL ON public.vehicles TO authenticated;
-GRANT ALL ON public.cameras TO authenticated;
-GRANT ALL ON public.sms_recipients TO authenticated;
-GRANT ALL ON public.detections TO authenticated;
-GRANT ALL ON public.sms_messages TO authenticated;
-
--- Grant select permissions to anon for public data if needed
-GRANT SELECT ON public.cameras TO anon;
-
--- =============================================
--- VERIFY POLICIES
--- =============================================
-
--- Check if policies are created correctly
-SELECT schemaname, tablename, policyname, permissive, roles, cmd, qual 
-FROM pg_policies 
-WHERE schemaname = 'public' 
-ORDER BY tablename, policyname;
+COMMIT;
