@@ -120,21 +120,22 @@ class SmsService {
         sender: senderId,
         message: message,
         recipients: [to],
-        sandbox: process.env.NODE_ENV === "development",
+        // sandbox: process.env.NODE_ENV === "development",
       }),
     });
 
     const result = await response.json();
+    
+if (response.ok && (result.code === "ok" || result.status === "success")) {
+  return {
+    success: true,
+    messageId: result.data?.[0]?.id || `arkesel_${Date.now()}`,
+    provider: "Arkesel",
+  };
+} else {
+  throw new Error(result.message || "Arkesel SMS failed");
+}
 
-    if (response.ok && result.code === "ok") {
-      return {
-        success: true,
-        messageId: result.data?.id || `arkesel_${Date.now()}`,
-        provider: "Arkesel",
-      };
-    } else {
-      throw new Error(result.message || "Arkesel SMS failed");
-    }
   }
 
   /**

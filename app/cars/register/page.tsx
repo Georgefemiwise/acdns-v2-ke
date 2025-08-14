@@ -16,6 +16,7 @@ import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { sendCarRegistrationSms, smsService } from "@/lib/sms-service"
 import { generateWelcomeMessage, aiSmsGenerator } from "@/lib/ai-sms-generator"
+import { sendCarRegistrationSmsAction } from "@/app/actions/sendCarRegistrationSmsAction"
 
 export default function RegisterCar() {
   const { user } = useAuth()
@@ -94,13 +95,13 @@ export default function RegisterCar() {
         )
 
         // Send SMS using Arkesel SMS service
-        const smsResult = await sendCarRegistrationSms(
+        const smsResult = await sendCarRegistrationSmsAction(
           formData.ownerName,
           formData.ownerPhone,
           formData.license.toUpperCase(),
           formData.make,
-          formData.model,
-        )
+          formData.model
+        );
 
         if (smsResult.success) {
           // Log SMS in database
@@ -161,7 +162,7 @@ export default function RegisterCar() {
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
-  
+
   
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
