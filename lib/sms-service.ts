@@ -22,7 +22,7 @@ interface BulkSmsResult {
 }
 
 // Arkesel SMS Provider
-const arkeselProvider = {
+export const arkeselProvider = {
   name: "Arkesel",
   apiUrl: "https://sms.arkesel.com/api/v2/sms/send",
   available: !!(process.env.ARKESEL_API_KEY && process.env.ARKESEL_SENDER_ID),
@@ -46,65 +46,69 @@ class SmsService {
     arkesel: arkeselProvider,
     twilio: twilioProvider,
     mock: mockProvider,
-  }
+  };
 
   constructor() {
-    console.log("📱 SMS Service initialized")
-    console.log("Available providers:", this.getAvailableProviders())
+    console.log("📱 SMS Service initialized");
+    console.log("Available providers:", this.getAvailableProviders());
   }
 
-  /**
+  /**  
+
    * Get list of available SMS providers
    */
   getAvailableProviders(): string[] {
     return Object.entries(this.providers)
       .filter(([_, config]) => config.available)
-      .map(([_, config]) => config.name)
+      .map(([_, config]) => config.name);
   }
 
   /**
    * Get the primary provider name
    */
   getProviderName(): string {
-    if (this.providers.arkesel.available) return this.providers.arkesel.name
-    if (this.providers.twilio.available) return this.providers.twilio.name
-    return this.providers.mock.name
+    if (this.providers.arkesel.available) return this.providers.arkesel.name;
+    if (this.providers.twilio.available) return this.providers.twilio.name;
+    return this.providers.mock.name;
   }
 
   /**
    * Send SMS using the best available provider
    */
   async sendSms(to: string, message: string): Promise<SmsResult> {
-    const cleanPhone = this.cleanPhoneNumber(to)
+    const cleanPhone = this.cleanPhoneNumber(to);
 
     // Try Arkesel first (primary provider)
     if (this.providers.arkesel.available) {
       try {
-        return await this.sendViaArkesel(cleanPhone, message)
+        return await this.sendViaArkesel(cleanPhone, message);
       } catch (error) {
-        console.error("Arkesel SMS failed:", error)
+        console.error("Arkesel SMS failed:", error);
       }
     }
 
     // Try Twilio as fallback
     if (this.providers.twilio.available) {
       try {
-        return await this.sendViaTwilio(cleanPhone, message)
+        return await this.sendViaTwilio(cleanPhone, message);
       } catch (error) {
-        console.error("Twilio SMS failed:", error)
+        console.error("Twilio SMS failed:", error);
       }
     }
 
     // Use mock service for development
-    return this.sendViaMock(cleanPhone, message)
+    return this.sendViaMock(cleanPhone, message);
   }
 
   /**
    * Send SMS via Arkesel
    */
-  private async sendViaArkesel(to: string, message: string): Promise<SmsResult> {
-    const apiKey = process.env.ARKESEL_API_KEY
-    const senderId = process.env.ARKESEL_SENDER_ID || "CyberWatch"
+  private async sendViaArkesel(
+    to: string,
+    message: string
+  ): Promise<SmsResult> {
+    const apiKey = process.env.ARKESEL_API_KEY;
+    const senderId = process.env.ARKESEL_SENDER_ID || "CyberWatch";
 
     const response = await fetch(this.providers.arkesel.apiUrl, {
       method: "POST",
@@ -118,18 +122,18 @@ class SmsService {
         recipients: [to],
         sandbox: process.env.NODE_ENV === "development",
       }),
-    })
+    });
 
-    const result = await response.json()
+    const result = await response.json();
 
     if (response.ok && result.code === "ok") {
       return {
         success: true,
         messageId: result.data?.id || `arkesel_${Date.now()}`,
         provider: "Arkesel",
-      }
+      };
     } else {
-      throw new Error(result.message || "Arkesel SMS failed")
+      throw new Error(result.message || "Arkesel SMS failed");
     }
   }
 
@@ -137,33 +141,38 @@ class SmsService {
    * Send SMS via Twilio
    */
   private async sendViaTwilio(to: string, message: string): Promise<SmsResult> {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID
-    const authToken = process.env.TWILIO_AUTH_TOKEN
-    const fromNumber = process.env.TWILIO_PHONE_NUMBER
+    const accountSid = process.env.TWILIO_ACCOUNT_SID;
+    const authToken = process.env.TWILIO_AUTH_TOKEN;
+    const fromNumber = process.env.TWILIO_PHONE_NUMBER;
 
-    const response = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`, {
-      method: "POST",
-      headers: {
-        Authorization: `Basic ${Buffer.from(`${accountSid}:${authToken}`).toString("base64")}`,
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        From: fromNumber!,
-        To: to,
-        Body: message,
-      }),
-    })
+    const response = await fetch(
+      `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Basic ${Buffer.from(
+            `${accountSid}:${authToken}`
+          ).toString("base64")}`,
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          From: fromNumber!,
+          To: to,
+          Body: message,
+        }),
+      }
+    );
 
-    const result = await response.json()
+    const result = await response.json();
 
     if (response.ok) {
       return {
         success: true,
         messageId: result.sid,
         provider: "Twilio",
-      }
+      };
     } else {
-      throw new Error(result.message || "Twilio SMS failed")
+      throw new Error(result.message || "Twilio SMS failed");
     }
   }
 
@@ -171,56 +180,59 @@ class SmsService {
    * Mock SMS service for development
    */
   private async sendViaMock(to: string, message: string): Promise<SmsResult> {
-    console.log("📱 MOCK SMS SENT:")
-    console.log(`To: ${to}`)
-    console.log(`Message: ${message}`)
-    console.log("---")
+    console.log("📱 MOCK SMS SENT:");
+    console.log(`To: ${to}`);
+    console.log(`Message: ${message}`);
+    console.log("---");
 
     // Simulate API delay
-    await new Promise((resolve) => setTimeout(resolve, 500))
+    await new Promise((resolve) => setTimeout(resolve, 500));
 
     return {
       success: true,
       messageId: `mock_${Date.now()}`,
       provider: "Mock SMS (Development)",
-    }
+    };
   }
 
   /**
    * Send bulk SMS to multiple recipients
    */
-  async sendBulkSms(phoneNumbers: string[], message: string): Promise<BulkSmsResult> {
-    const results: SmsResult[] = []
-    let successCount = 0
-    let failedCount = 0
+  async sendBulkSms(
+    phoneNumbers: string[],
+    message: string
+  ): Promise<BulkSmsResult> {
+    const results: SmsResult[] = [];
+    let successCount = 0;
+    let failedCount = 0;
 
     for (const phone of phoneNumbers) {
       try {
-        const result = await this.sendSms(phone, message)
-        results.push(result)
+        const result = await this.sendSms(phone, message);
+        results.push(result);
         if (result.success) {
-          successCount++
+          successCount++;
         } else {
-          failedCount++
+          failedCount++;
         }
       } catch (error) {
         results.push({
           success: false,
           error: error instanceof Error ? error.message : "Unknown error",
           provider: this.getProviderName(),
-        })
-        failedCount++
+        });
+        failedCount++;
       }
 
       // Small delay between messages to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100));
     }
 
     return {
       success: successCount,
       failed: failedCount,
       results,
-    }
+    };
   }
 
   /**
@@ -228,56 +240,65 @@ class SmsService {
    */
   private cleanPhoneNumber(phone: string): string {
     // Remove all non-digit characters
-    let cleaned = phone.replace(/\D/g, "")
+    let cleaned = phone.replace(/\D/g, "");
 
     // Handle Ghana phone numbers
     if (cleaned.startsWith("0") && cleaned.length === 10) {
       // Convert 0241234567 to +233241234567
-      cleaned = "233" + cleaned.substring(1)
+      cleaned = "233" + cleaned.substring(1);
     } else if (cleaned.startsWith("233") && cleaned.length === 12) {
       // Already in correct format
-      cleaned = cleaned
+      cleaned = cleaned;
     } else if (cleaned.length === 9) {
       // Add Ghana country code
-      cleaned = "233" + cleaned
+      cleaned = "233" + cleaned;
     }
 
     // Add + prefix if not present
     if (!cleaned.startsWith("+")) {
-      cleaned = "+" + cleaned
+      cleaned = "+" + cleaned;
     }
 
-    return cleaned
+    return cleaned;
   }
 
   /**
    * Validate phone number format
    */
-  validatePhoneNumber(phone: string): { isValid: boolean; formatted: string; error?: string } {
+  validatePhoneNumber(phone: string): {
+    isValid: boolean;
+    formatted: string;
+    error?: string;
+  } {
     try {
-      const formatted = this.cleanPhoneNumber(phone)
+      const formatted = this.cleanPhoneNumber(phone);
 
       // Basic validation for Ghana numbers
       if (formatted.startsWith("+233") && formatted.length === 13) {
-        return { isValid: true, formatted }
+        return { isValid: true, formatted };
       }
 
       // International format validation (basic)
-      if (formatted.startsWith("+") && formatted.length >= 10 && formatted.length <= 15) {
-        return { isValid: true, formatted }
+      if (
+        formatted.startsWith("+") &&
+        formatted.length >= 10 &&
+        formatted.length <= 15
+      ) {
+        return { isValid: true, formatted };
       }
 
       return {
         isValid: false,
         formatted: phone,
-        error: "Invalid phone number format. Use +233XXXXXXXXX or 0XXXXXXXXX for Ghana numbers.",
-      }
+        error:
+          "Invalid phone number format. Use +233XXXXXXXXX or 0XXXXXXXXX for Ghana numbers.",
+      };
     } catch (error) {
       return {
         isValid: false,
         formatted: phone,
         error: "Failed to validate phone number",
-      }
+      };
     }
   }
 }

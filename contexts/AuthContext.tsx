@@ -31,7 +31,7 @@ interface AuthContextType {
   updateProfile: (updates: Partial<UserProfile>) => Promise<{ error: any }>
   requireAuth: () => boolean
 }
-
+const isInDevMode = process.env.NODE_ENV === "development";
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -91,7 +91,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
-      console.log("Auth state changed:", event, session?.user?.id)
+      isInDevMode&&console.log("Auth state changed:", event, session?.user?.id);
 
       if (mounted) {
         setSession(session)
@@ -114,7 +114,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const fetchUserProfile = async (userId: string) => {
     try {
-      console.log("Fetching profile for user:", userId)
+      isInDevMode && console.log("Fetching profile for user:", userId);
 
       const { data, error } = await supabase.from("users").select("*").eq("id", userId).single()
 
@@ -130,14 +130,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setProfile(null)
         }
       } else {
-        console.log("Profile fetched successfully:", data)
+        isInDevMode && console.log("Profile fetched successfully:", data);
         setProfile(data)
       }
     } catch (error) {
       console.error("Unexpected error fetching user profile:", error)
       setProfile(null)
     } finally {
-      console.log("Setting loading to false")
+      isInDevMode && console.log("Setting loading to false");
       setLoading(false)
     }
   }
@@ -171,7 +171,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             updated_at: new Date().toISOString(),
           })
         } else {
-          console.log("Profile created successfully:", data)
+          isInDevMode && console.log("Profile created successfully:", data);
           setProfile(data)
         }
       }

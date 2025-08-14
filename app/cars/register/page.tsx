@@ -161,18 +161,22 @@ export default function RegisterCar() {
   const handleInputChange = (field: string, value: string) => {
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
-
+  
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900">
       <div className="absolute inset-0 bg-[linear-gradient(rgba(6,182,212,0.1)_1px,transparent_1px),linear-gradient(90deg,rgba(6,182,212,0.1)_1px,transparent_1px)] bg-[size:50px_50px] [mask-image:radial-gradient(ellipse_80%_50%_at_50%_0%,#000_70%,transparent_110%)]" />
-
       <div className="relative z-10">
         {/* Header */}
         <header className="border-b border-cyan-500/30 bg-gray-900/80 backdrop-blur-sm">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center space-x-4">
               <Link href="/cars">
-                <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-cyan-400 hover:text-cyan-300"
+                >
                   <ArrowLeft className="h-4 w-4 mr-2" />
                   Back to Database
                 </Button>
@@ -228,8 +232,11 @@ export default function RegisterCar() {
               <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-purple-500/10 border-purple-500/30 text-purple-400">
                 <MessageSquare className="h-4 w-4 flex-shrink-0 animate-pulse" />
                 <span>
-                  Generating {aiSmsGenerator.isAiAvailable() ? "AI-powered" : "template-based"} welcome SMS via
-                  Arkesel...
+                  Generating{" "}
+                  {aiSmsGenerator.isAiAvailable()
+                    ? "AI-powered"
+                    : "template-based"}{" "}
+                  welcome SMS via Arkesel...
                 </span>
               </div>
             )}
@@ -239,8 +246,8 @@ export default function RegisterCar() {
               <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-blue-500/10 border-blue-500/30 text-blue-400">
                 <FileText className="h-4 w-4 flex-shrink-0" />
                 <span>
-                  Using template-based SMS messages. Add OPENAI_API_KEY environment variable to enable AI-generated
-                  messages.
+                  Using template-based SMS messages. Add OPENAI_API_KEY
+                  environment variable to enable AI-generated messages.
                 </span>
               </div>
             )}
@@ -252,8 +259,11 @@ export default function RegisterCar() {
                   Vehicle Information
                 </CardTitle>
                 <CardDescription className="text-gray-400">
-                  Enter the vehicle and owner details. Owner will receive an instant SMS confirmation via Arkesel! 📱
-                  {aiSmsGenerator.isAiAvailable() ? " (AI-generated messages)" : " (Template-based messages)"}
+                  Enter the vehicle and owner details. Owner will receive an
+                  instant SMS confirmation via Arkesel! 📱
+                  {aiSmsGenerator.isAiAvailable()
+                    ? " (AI-generated messages)"
+                    : " (Template-based messages)"}
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -273,7 +283,9 @@ export default function RegisterCar() {
                           id="license"
                           placeholder="ABC-123"
                           value={formData.license}
-                          onChange={(e) => handleInputChange("license", e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("license", e.target.value)
+                          }
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
                           disabled={loading}
@@ -286,7 +298,9 @@ export default function RegisterCar() {
                         </Label>
                         <Select
                           value={formData.color}
-                          onValueChange={(value) => handleInputChange("color", value)}
+                          onValueChange={(value) =>
+                            handleInputChange("color", value)
+                          }
                           disabled={loading}
                         >
                           <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
@@ -315,7 +329,9 @@ export default function RegisterCar() {
                           id="make"
                           placeholder="Tesla"
                           value={formData.make}
-                          onChange={(e) => handleInputChange("make", e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("make", e.target.value)
+                          }
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
                           disabled={loading}
@@ -330,7 +346,9 @@ export default function RegisterCar() {
                           id="model"
                           placeholder="Model 3"
                           value={formData.model}
-                          onChange={(e) => handleInputChange("model", e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("model", e.target.value)
+                          }
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
                           disabled={loading}
@@ -348,7 +366,9 @@ export default function RegisterCar() {
                           min="1900"
                           max="2030"
                           value={formData.year}
-                          onChange={(e) => handleInputChange("year", e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("year", e.target.value)
+                          }
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
                           disabled={loading}
@@ -371,7 +391,9 @@ export default function RegisterCar() {
                         id="ownerName"
                         placeholder="John Doe"
                         value={formData.ownerName}
-                        onChange={(e) => handleInputChange("ownerName", e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("ownerName", e.target.value)
+                        }
                         className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                         required
                         disabled={loading}
@@ -388,14 +410,19 @@ export default function RegisterCar() {
                           type="tel"
                           placeholder="0241234567 or +233241234567"
                           value={formData.ownerPhone}
-                          onChange={(e) => handleInputChange("ownerPhone", e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("ownerPhone", e.target.value)
+                          }
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
                           disabled={loading}
                         />
                         <p className="text-xs text-gray-500">
                           📱 Owner will receive instant{" "}
-                          {aiSmsGenerator.isAiAvailable() ? "AI-generated" : "template-based"} SMS via Arkesel
+                          {aiSmsGenerator.isAiAvailable()
+                            ? "AI-generated"
+                            : "template-based"}{" "}
+                          SMS via Arkesel
                         </p>
                       </div>
 
@@ -408,7 +435,9 @@ export default function RegisterCar() {
                           type="email"
                           placeholder="john.doe@email.com"
                           value={formData.ownerEmail}
-                          onChange={(e) => handleInputChange("ownerEmail", e.target.value)}
+                          onChange={(e) =>
+                            handleInputChange("ownerEmail", e.target.value)
+                          }
                           className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                           required
                           disabled={loading}
@@ -431,7 +460,9 @@ export default function RegisterCar() {
                         id="notes"
                         placeholder="Any additional information about the vehicle or owner..."
                         value={formData.notes}
-                        onChange={(e) => handleInputChange("notes", e.target.value)}
+                        onChange={(e) =>
+                          handleInputChange("notes", e.target.value)
+                        }
                         className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500 min-h-[100px]"
                         disabled={loading}
                       />
@@ -479,5 +510,5 @@ export default function RegisterCar() {
         </div>
       </div>
     </div>
-  )
+  );
 }
