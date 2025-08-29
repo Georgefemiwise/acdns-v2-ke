@@ -1,94 +1,113 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Badge } from "@/components/ui/badge"
-import { Car, Search, Plus, ArrowLeft, Edit, Trash2, AlertCircle } from "lucide-react"
-import { supabase } from "@/lib/supabase"
-import { useAuth } from "@/contexts/AuthContext"
-import Link from "next/link"
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import {
+  Car,
+  Search,
+  Plus,
+  ArrowLeft,
+  Edit,
+  Trash2,
+  AlertCircle,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import Link from "next/link";
 
 interface Vehicle {
-  id: string
-  license_plate: string
-  make: string
-  model: string
-  year: number
-  color: string
-  owner_name: string
-  owner_phone: string
-  owner_email: string
-  status: string
-  created_at: string
+  id: string;
+  license_plate: string;
+  make: string;
+  model: string;
+  year: number;
+  color: string;
+  owner_name: string;
+  owner_phone: string;
+  owner_email: string;
+  status: string;
+  created_at: string;
 }
 
 export default function CarsDatabase() {
-  const { user } = useAuth()
-  const [searchTerm, setSearchTerm] = useState("")
-  const [cars, setCars] = useState<Vehicle[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState("")
+  const { user } = useAuth();
+  const [searchTerm, setSearchTerm] = useState("");
+  const [cars, setCars] = useState<Vehicle[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (user) {
-      fetchCars()
+      fetchCars();
     }
-  }, [user])
+  }, [user]);
 
   const fetchCars = async () => {
     try {
-      setLoading(true)
-      const { data, error } = await supabase.from("vehicles").select("*").order("created_at", { ascending: false })
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("vehicles")
+        .select("*")
+        .order("created_at", { ascending: false });
 
       if (error) {
-        setError(`Failed to load vehicles: ${error.message}`)
+        setError(`Failed to load vehicles: ${error.message}`);
       } else {
-        setCars(data || [])
+        setCars(data || []);
       }
     } catch (error) {
-      console.error("Error fetching cars:", error)
-      setError("An unexpected error occurred")
+      console.error("Error fetching cars:", error);
+      setError("An unexpected error occurred");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const deleteCar = async (id: string) => {
-    if (!confirm("Are you sure you want to delete this vehicle?")) return
+    if (!confirm("Are you sure you want to delete this vehicle?")) return;
 
     try {
-      const { error } = await supabase.from("vehicles").delete().eq("id", id)
+      const { error } = await supabase.from("vehicles").delete().eq("id", id);
 
       if (error) {
-        alert(`Failed to delete vehicle: ${error.message}`)
+        alert(`Failed to delete vehicle: ${error.message}`);
       } else {
-        setCars(cars.filter((car) => car.id !== id))
+        setCars(cars.filter((car) => car.id !== id));
       }
     } catch (error) {
-      console.error("Error deleting car:", error)
-      alert("An unexpected error occurred")
+      console.error("Error deleting car:", error);
+      alert("An unexpected error occurred");
     }
-  }
+  };
 
   const filteredCars = cars.filter(
     (car) =>
       car.license_plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
       car.owner_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       car.make.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      car.model.toLowerCase().includes(searchTerm.toLowerCase()),
-  )
+      car.model.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   if (!user) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
         <div className="text-center">
           <Car className="h-12 w-12 text-cyan-400 mx-auto mb-4" />
-          <p className="text-gray-400">Please log in to access the car database</p>
+          <p className="text-gray-400">
+            Please log in to access the car database
+          </p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -102,7 +121,11 @@ export default function CarsDatabase() {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <Link href="/">
-                  <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-cyan-400 hover:text-cyan-300"
+                  >
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back
                   </Button>
@@ -143,10 +166,16 @@ export default function CarsDatabase() {
                 />
               </div>
               <div className="flex space-x-4">
-                <Badge variant="secondary" className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
+                <Badge
+                  variant="secondary"
+                  className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+                >
                   Total: {cars.length}
                 </Badge>
-                <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
+                <Badge
+                  variant="secondary"
+                  className="bg-green-500/20 text-green-400 border-green-500/30"
+                >
                   Active: {cars.filter((c) => c.status === "active").length}
                 </Badge>
               </div>
@@ -175,7 +204,9 @@ export default function CarsDatabase() {
                           {car.license_plate}
                         </CardTitle>
                         <Badge
-                          variant={car.status === "active" ? "default" : "secondary"}
+                          variant={
+                            car.status === "active" ? "default" : "secondary"
+                          }
                           className={
                             car.status === "active"
                               ? "bg-green-500/20 text-green-400 border-green-500/30"
@@ -203,7 +234,9 @@ export default function CarsDatabase() {
                         </div>
 
                         <div className="border-t border-gray-700 pt-3">
-                          <h4 className="text-purple-400 font-medium mb-2">Owner Information</h4>
+                          <h4 className="text-purple-400 font-medium mb-2">
+                            Owner Information
+                          </h4>
                           <div className="space-y-1 text-sm">
                             <p className="text-white">{car.owner_name}</p>
                             <p className="text-gray-400">{car.owner_phone}</p>
@@ -213,18 +246,22 @@ export default function CarsDatabase() {
 
                         <div className="border-t border-gray-700 pt-3">
                           <span className="text-gray-400 text-sm">Added:</span>
-                          <p className="text-white text-sm">{new Date(car.created_at).toLocaleDateString()}</p>
+                          <p className="text-white text-sm">
+                            {new Date(car.created_at).toLocaleDateString()}
+                          </p>
                         </div>
 
                         <div className="flex space-x-2 pt-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="flex-1 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
-                          >
-                            <Edit className="h-3 w-3 mr-1" />
-                            Edit
-                          </Button>
+                          <Link href={`cars/${car.id}/edit`}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="flex-1 border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
+                            >
+                              <Edit className="h-3 w-3 mr-1" />
+                              Edit
+                            </Button>
+                          </Link>
                           <Button
                             size="sm"
                             variant="outline"
@@ -243,9 +280,13 @@ export default function CarsDatabase() {
               {filteredCars.length === 0 && !loading && (
                 <div className="text-center py-12">
                   <Car className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-                  <h3 className="text-xl font-semibold text-gray-400 mb-2">No cars found</h3>
+                  <h3 className="text-xl font-semibold text-gray-400 mb-2">
+                    No cars found
+                  </h3>
                   <p className="text-gray-500 mb-6">
-                    {searchTerm ? "Try adjusting your search terms" : "Start by adding your first vehicle"}
+                    {searchTerm
+                      ? "Try adjusting your search terms"
+                      : "Start by adding your first vehicle"}
                   </p>
                   <Link href="/cars/register">
                     <Button className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600">
@@ -260,5 +301,5 @@ export default function CarsDatabase() {
         </div>
       </div>
     </div>
-  )
+  );
 }

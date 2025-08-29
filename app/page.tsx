@@ -1,62 +1,79 @@
-"use client"
+"use client";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Car, Users, Camera, MessageSquare, Activity, Zap, LogOut } from "lucide-react"
-import { AuthModal } from "@/components/AuthModal"
-import { useAuth } from "@/contexts/AuthContext"
-import { supabase } from "@/lib/supabase"
-import Link from "next/link"
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import {
+  Car,
+  Users,
+  Camera,
+  MessageSquare,
+  Activity,
+  Zap,
+  LogOut,
+} from "lucide-react";
+import { AuthModal } from "@/components/AuthModal";
+import { useAuth } from "@/contexts/AuthContext";
+import { supabase } from "@/lib/supabase";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
 export default function Dashboard() {
-  const { user, profile, signOut, loading } = useAuth()
+  const { user, profile, signOut, loading } = useAuth();
   const [stats, setStats] = useState({
     totalCars: 0,
     totalUsers: 0,
     activeCameras: 4,
     smsCount: 0,
-  })
-  const [recentActivity, setRecentActivity] = useState<any[]>([])
-  const [authModalOpen, setAuthModalOpen] = useState(false)
+  });
+  const [recentActivity, setRecentActivity] = useState<any[]>([]);
+  const [authModalOpen, setAuthModalOpen] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
     if (user) {
-      fetchRealStats()
-      fetchRecentActivity()
+      fetchRealStats();
+      fetchRecentActivity();
     } else {
       // Set default stats for non-authenticated users
       setStats({
-        totalCars: 1247,
-        totalUsers: 89,
-        activeCameras: 4,
-        smsCount: 156,
-      })
+        totalCars: 0,
+        totalUsers: 0,
+        activeCameras: 0,
+        smsCount: 0,
+      });
     }
-  }, [user])
+  }, [user]);
 
   const fetchRealStats = async () => {
     try {
       // Fetch real data from Supabase
-      const [vehiclesResult, usersResult, camerasResult, smsResult] = await Promise.all([
-        supabase.from("vehicles").select("id", { count: "exact" }),
-        supabase.from("users").select("id", { count: "exact" }),
-        supabase.from("cameras").select("id", { count: "exact" }),
-        supabase.from("sms_recipients").select("id", { count: "exact" }),
-      ])
+      const [vehiclesResult, usersResult, camerasResult, smsResult] =
+        await Promise.all([
+          supabase.from("vehicles").select("id", { count: "exact" }),
+          supabase.from("users").select("id", { count: "exact" }),
+          supabase.from("cameras").select("id", { count: "exact" }),
+          supabase.from("sms_recipients").select("id", { count: "exact" }),
+        ]);
 
       setStats({
         totalCars: vehiclesResult.count || 0,
         totalUsers: usersResult.count || 0,
         activeCameras: camerasResult.count || 4,
         smsCount: smsResult.count || 0,
-      })
+      });
     } catch (error) {
-      console.error("Error fetching stats:", error)
+      console.error("Error fetching stats:", error);
       // Keep default stats on error
     }
-  }
+  };
 
   const fetchRecentActivity = async () => {
     try {
@@ -65,7 +82,7 @@ export default function Dashboard() {
         .from("vehicles")
         .select("license_plate, created_at, owner_name")
         .order("created_at", { ascending: false })
-        .limit(4)
+        .limit(4);
 
       if (vehicles) {
         const activity = vehicles.map((vehicle, index) => ({
@@ -73,7 +90,7 @@ export default function Dashboard() {
           action: index === 0 ? "Car detected" : "New vehicle registered",
           details: `License: ${vehicle.license_plate}`,
           type: index === 0 ? "detection" : "user",
-        }))
+        }));
 
         // Add some system activities
         activity.push({
@@ -81,66 +98,92 @@ export default function Dashboard() {
           action: "Camera online",
           details: "Camera #3 connected",
           type: "system",
-        })
+        });
 
-        setRecentActivity(activity)
+        setRecentActivity(activity);
       }
     } catch (error) {
-      console.error("Error fetching recent activity:", error)
+      console.error("Error fetching recent activity:", error);
       // Set default activity
       setRecentActivity([
-        { time: "2 min ago", action: "Car detected", details: "License: ABC-123", type: "detection" },
-        { time: "5 min ago", action: "SMS sent", details: "Alert to 3 recipients", type: "notification" },
+        {
+          time: "2 min ago",
+          action: "Car detected",
+          details: "License: ABC-123",
+          type: "detection",
+        },
+        {
+          time: "5 min ago",
+          action: "SMS sent",
+          details: "Alert to 3 recipients",
+          type: "notification",
+        },
         {
           time: "12 min ago",
           action: "New user registered",
-          details: profile ? `${profile.first_name} ${profile.last_name}` : "john.doe@example.com",
+          details: profile
+            ? `${profile.first_name} ${profile.last_name}`
+            : "john.doe@example.com",
           type: "user",
         },
-        { time: "18 min ago", action: "Camera online", details: "Camera #3 connected", type: "system" },
-      ])
+        {
+          time: "18 min ago",
+          action: "Camera online",
+          details: "Camera #3 connected",
+          type: "system",
+        },
+      ]);
     }
-  }
+  };
 
   const getTimeAgo = (dateString: string) => {
-    const now = new Date()
-    const date = new Date(dateString)
-    const diffInMinutes = Math.floor((now.getTime() - date.getTime()) / (1000 * 60))
+    const now = new Date();
+    const date = new Date(dateString);
+    const diffInMinutes = Math.floor(
+      (now.getTime() - date.getTime()) / (1000 * 60)
+    );
 
     if (diffInMinutes < 60) {
-      return `${diffInMinutes} min ago`
+      return `${diffInMinutes} min ago`;
     } else if (diffInMinutes < 1440) {
-      return `${Math.floor(diffInMinutes / 60)} hours ago`
+      return `${Math.floor(diffInMinutes / 60)} hours ago`;
     } else {
-      return `${Math.floor(diffInMinutes / 1440)} days ago`
+      return `${Math.floor(diffInMinutes / 1440)} days ago`;
     }
-  }
+  };
 
-  const handleProtectedAction = (action: () => void) => {
+  const handleProtectedAction = (route: string) => {
     if (!user) {
-      setAuthModalOpen(true)
-      return
+      setAuthModalOpen(true);
+      return;
     }
-    action()
-  }
+    router.push(route);
+  };
 
   const StatCard = ({ title, value, icon: Icon, description, trend }: any) => (
     <Card className="bg-gray-900/50 border-cyan-500/30 hover:border-cyan-400/50 transition-all duration-300 group">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-gray-300">{title}</CardTitle>
+        <CardTitle className="text-sm font-medium text-gray-300">
+          {title}
+        </CardTitle>
         <Icon className="h-4 w-4 text-cyan-400 group-hover:text-cyan-300 transition-colors" />
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-bold text-white mb-1">{value.toLocaleString()}</div>
+        <div className="text-2xl font-bold text-white mb-1">
+          {value.toLocaleString()}
+        </div>
         <p className="text-xs text-gray-400">{description}</p>
         {trend && (
-          <Badge variant="secondary" className="mt-2 bg-green-500/20 text-green-400 border-green-500/30">
+          <Badge
+            variant="secondary"
+            className="mt-2 bg-green-500/20 text-green-400 border-green-500/30"
+          >
             {trend}
           </Badge>
         )}
       </CardContent>
     </Card>
-  )
+  );
 
   if (loading) {
     return (
@@ -150,7 +193,7 @@ export default function Dashboard() {
           <p className="text-gray-400">Loading CyberWatch...</p>
         </div>
       </div>
-    )
+    );
   }
 
   return (
@@ -169,41 +212,48 @@ export default function Dashboard() {
                   CyberWatch
                 </h1>
               </div>
-              <nav className="hidden md:flex items-center space-x-6">
-                <button
-                  onClick={() => handleProtectedAction(() => (window.location.href = "/camera"))}
-                  className="text-gray-300 hover:text-cyan-400 transition-colors"
-                >
-                  Live Feed
-                </button>
-                <button
-                  onClick={() => handleProtectedAction(() => (window.location.href = "/cars"))}
-                  className="text-gray-300 hover:text-cyan-400 transition-colors"
-                >
-                  Car Registry
-                </button>
-                <button
-                  onClick={() => handleProtectedAction(() => (window.location.href = "/sms"))}
-                  className="text-gray-300 hover:text-cyan-400 transition-colors"
-                >
-                  SMS Center
-                </button>
-                {user && (
-                  <Link href="/profile" className="text-gray-300 hover:text-cyan-400 transition-colors">
-                    Profile
+              {/* if theres a user then show */}
+              {user && (
+                <nav className="hidden md:flex items-center space-x-6">
+                  <Link
+                    href="/camera"
+                    className="text-gray-300 hover:text-cyan-400 transition-colors"
+                  >
+                    Live Feed
                   </Link>
-                )}
-              </nav>
+                  <Link
+                    href="/cars"
+                    className="text-gray-300 hover:text-cyan-400 transition-colors"
+                  >
+                    Car Registry
+                  </Link>
+                  <Link
+                    href="/sms"
+                    className="text-gray-300 hover:text-cyan-400 transition-colors"
+                  >
+                    SMS Center
+                  </Link>
+                  {user && (
+                    <Link
+                      href="/profile"
+                      className="text-gray-300 hover:text-cyan-400 transition-colors"
+                    >
+                      Profile
+                    </Link>
+                  )}
+                </nav>
+              )}
               <div className="flex items-center space-x-2">
                 {user && profile ? (
                   <div className="flex items-center space-x-3">
                     <div className="text-right">
                       <span className="text-sm text-gray-300 block">
-                        Welcome, {profile.first_name} {profile.last_name}
+                        Welcome, {profile.first_name}
+                        {/* {profile.last_name} */}
                       </span>
-                      <span className="text-xs text-gray-400 capitalize">
+                      {/* <span className="text-xs text-gray-400 capitalize">
                         {profile.role} • {profile.department}
-                      </span>
+                      </span> */}
                     </div>
                     <Button
                       onClick={signOut}
@@ -239,12 +289,13 @@ export default function Dashboard() {
               </span>
             </h2>
             <p className="text-xl text-gray-400 mb-8 max-w-2xl mx-auto">
-              Advanced AI-powered vehicle monitoring system with real-time detection and automated notifications
+              Advanced AI-powered vehicle monitoring system with real-time
+              detection and automated notifications
             </p>
             <div className="flex flex-col sm:flex-row gap-4 justify-center">
               <Button
                 size="lg"
-                onClick={() => handleProtectedAction(() => (window.location.href = "/camera"))}
+                onClick={() => handleProtectedAction("/camera")}
                 className="bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600"
               >
                 <Camera className="mr-2 h-5 w-5" />
@@ -253,7 +304,7 @@ export default function Dashboard() {
               <Button
                 size="lg"
                 variant="outline"
-                onClick={() => handleProtectedAction(() => (window.location.href = "/cars"))}
+                onClick={() => handleProtectedAction("/cars")}
                 className="border-cyan-500/50 text-cyan-400 hover:bg-cyan-500/10 bg-transparent"
               >
                 View Database
@@ -307,7 +358,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={() => handleProtectedAction(() => (window.location.href = "/camera"))}
+                  onClick={() => handleProtectedAction("/camera")}
                   className="w-full bg-cyan-500/20 hover:bg-cyan-500/30 text-cyan-400 border border-cyan-500/50"
                 >
                   Access Feed
@@ -327,7 +378,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={() => handleProtectedAction(() => (window.location.href = "/cars/register"))}
+                  onClick={() => handleProtectedAction("/cars/register")}
                   className="w-full bg-purple-500/20 hover:bg-purple-500/30 text-purple-400 border border-purple-500/50"
                 >
                   Register Car
@@ -347,7 +398,7 @@ export default function Dashboard() {
               </CardHeader>
               <CardContent>
                 <Button
-                  onClick={() => handleProtectedAction(() => (window.location.href = "/sms"))}
+                  onClick={() => handleProtectedAction("/sms")}
                   className="w-full bg-green-500/20 hover:bg-green-500/30 text-green-400 border border-green-500/50"
                 >
                   SMS Center
@@ -377,18 +428,24 @@ export default function Dashboard() {
                           activity.type === "detection"
                             ? "bg-cyan-400"
                             : activity.type === "notification"
-                              ? "bg-green-400"
-                              : activity.type === "user"
-                                ? "bg-purple-400"
-                                : "bg-yellow-400"
+                            ? "bg-green-400"
+                            : activity.type === "user"
+                            ? "bg-purple-400"
+                            : "bg-yellow-400"
                         }`}
                       />
                       <div>
-                        <p className="text-white font-medium">{activity.action}</p>
-                        <p className="text-gray-400 text-sm">{activity.details}</p>
+                        <p className="text-white font-medium">
+                          {activity.action}
+                        </p>
+                        <p className="text-gray-400 text-sm">
+                          {activity.details}
+                        </p>
                       </div>
                     </div>
-                    <span className="text-gray-500 text-sm">{activity.time}</span>
+                    <span className="text-gray-500 text-sm">
+                      {activity.time}
+                    </span>
                   </div>
                 ))}
               </div>
@@ -401,9 +458,9 @@ export default function Dashboard() {
         isOpen={authModalOpen}
         onClose={() => setAuthModalOpen(false)}
         onSuccess={() => {
-          window.location.reload()
+          window.location.reload();
         }}
       />
     </div>
-  )
+  );
 }

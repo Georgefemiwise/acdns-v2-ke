@@ -108,7 +108,7 @@ class SmsService {
     message: string
   ): Promise<SmsResult> {
     const apiKey = process.env.ARKESEL_API_KEY;
-    const senderId = process.env.ARKESEL_SENDER_ID || "CyberWatch";
+    const senderId = process.env.ARKESEL_SENDER_ID || "Acdns";
 
     const response = await fetch(this.providers.arkesel.apiUrl, {
       method: "POST",
@@ -321,7 +321,7 @@ export async function sendCarRegistrationSms(
   make: string,
   model: string,
 ): Promise<SmsResult> {
-  const message = `🚗 Hi ${ownerName}! Your ${make} ${model} (${licensePlate}) has been successfully registered with CyberWatch Security System. Welcome aboard! 🎉`
+  const message = `Hi ${ownerName}! Your ${make} ${model} (${licensePlate}) has been successfully registered with Acdns Security System. Welcome aboard! 🎉`
 
   return await smsService.sendSms(phone, message)
 }
@@ -330,7 +330,7 @@ export async function sendCarRegistrationSms(
  * Send welcome SMS to new SMS recipient
  */
 export async function sendWelcomeSms(name: string, phone: string): Promise<SmsResult> {
-  const message = `👋 Welcome ${name}! You've been added to CyberWatch SMS notifications. Stay secure! 🔒✨`
+  const message = `Welcome ${name}! You've been added to Acdns SMS notifications. Stay secure! 🔒✨`
 
   return await smsService.sendSms(phone, message)
 }
@@ -351,7 +351,7 @@ export async function sendDetectionAlert(
   location: string,
   confidence: number,
 ): Promise<BulkSmsResult> {
-  const message = `🚨 Vehicle Alert: ${licensePlate} detected at ${location}. Confidence: ${confidence.toFixed(
+  const message = `Vehicle Alert: ${licensePlate} detected at ${location}. Confidence: ${confidence.toFixed(
     1,
   )}%. Time: ${new Date().toLocaleString()}`
 

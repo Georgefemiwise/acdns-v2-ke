@@ -314,7 +314,7 @@ export async function generateRecipientWelcomeMessage(recipientName: string): Pr
     const generated = await aiSmsGenerator.generateMessage(options)
     const finalMessage = AiSmsGenerator.replacePlaceholders(generated.message, placeholders)
 
-    console.log(`📱 Generated ${generated.generatedBy === "ai" ? "AI" : "template"}-based recipient welcome`)
+    console.log(`Generated ${generated.generatedBy === "ai" ? "AI" : "template"}-based recipient welcome`)
     return finalMessage
   } catch (error) {
     console.error("Recipient welcome message generation failed:", error)
