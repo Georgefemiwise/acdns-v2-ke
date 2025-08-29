@@ -7,9 +7,8 @@ import "./globals.css"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "CyberWatch - Neural Car Detection System",
-  description: "Advanced AI-powered vehicle monitoring system with real-time detection and automated notifications",
-  generator: 'v0.dev'
+  title: "Acdns - Automatic Car Detection Notification System",
+  description: "AI-powered vehicle detection system with automated notifications",
 }
 
 export default function RootLayout({

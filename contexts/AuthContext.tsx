@@ -45,7 +45,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const initializeAuth = async () => {
       try {
-        console.log("Initializing auth...")
+        // console.log("Initializing auth...")
 
         // Get initial session
         const {
@@ -54,7 +54,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         } = await supabase.auth.getSession()
 
         if (error) {
-          console.error("Error getting session:", error)
+          // console.error("Error getting session:", error)
           if (mounted) {
             setSession(null)
             setUser(null)
@@ -77,10 +77,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       } catch (error) {
         console.error("Error initializing auth:", error)
         if (mounted) {
+          setLoading(false)
           setSession(null)
           setUser(null)
           setProfile(null)
-          setLoading(false)
         }
       }
     }

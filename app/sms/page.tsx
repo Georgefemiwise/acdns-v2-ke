@@ -9,11 +9,12 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Send, Users, Plus, Trash2, CheckCircle, AlertCircle, Heart, Zap, FileText } from "lucide-react"
+import { MessageSquare, Send, Users, Plus, Trash2, CheckCircle, AlertCircle, Heart, Zap, FileText, ArrowLeft } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useAuth } from "@/contexts/AuthContext"
 import { sendWelcomeSms, sendBulkSms } from "@/lib/sms-service"
 import { generateRecipientWelcomeMessage, aiSmsGenerator } from "@/lib/ai-sms-generator"
+import Link from "next/link"
 
 interface SmsRecipient {
   id: string
@@ -62,6 +63,7 @@ export default function SmsPage() {
         .select("*")
         .eq("created_by", user?.id)
         .order("created_at", { ascending: false })
+console.log("recipients Data", recipientsData);
 
       if (recipientsError) throw recipientsError
       setRecipients(recipientsData || [])
@@ -102,11 +104,11 @@ export default function SmsPage() {
         .insert({
           name: newRecipient.name,
           phone: newRecipient.phone,
-          status: "active",
+          // status: "active",
           created_by: user.id,
         })
-        .select()
-        .single()
+        // .select()
+        // .single();
 
       if (recipientError) {
         if (recipientError.code === "23505") {
@@ -115,7 +117,9 @@ export default function SmsPage() {
           setMessage({ type: "error", text: `Failed to add recipient: ${recipientError.message}` })
         }
         return
+        
       }
+console.log(recipientData);
 
       // Generate and send welcome message
       try {
@@ -129,7 +133,7 @@ export default function SmsPage() {
             message_type: "welcome",
             recipients_count: 1,
             status: "sent",
-            sent_at: new Date().toISOString(),
+            // sent_at: new Date().toISOString(),
             sent_by: user.id,
           })
 
@@ -207,7 +211,7 @@ export default function SmsPage() {
         message_type: "bulk",
         recipients_count: activeRecipients.length,
         status: bulkResult.success > 0 ? "sent" : "failed",
-        sent_at: new Date().toISOString(),
+        // sent_at: new Date().toISOString(),
         sent_by: user?.id,
       })
 
@@ -244,10 +248,23 @@ export default function SmsPage() {
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
+                <Link href="/">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-cyan-400 hover:text-cyan-300"
+                  >
+                    <ArrowLeft className="h-4 w-4 mr-2" />
+                    Back
+                  </Button>
+                </Link>{" "}
                 <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
                   SMS Management
                 </h1>
-                <Badge variant="outline" className="border-cyan-500/50 text-cyan-400">
+                <Badge
+                  variant="outline"
+                  className="border-cyan-500/50 text-cyan-400"
+                >
                   <MessageSquare className="h-3 w-3 mr-1" />
                   {recipients.length} Recipients
                 </Badge>
@@ -295,8 +312,8 @@ export default function SmsPage() {
             <div className="mb-6 flex items-center space-x-2 p-4 rounded-lg border bg-blue-500/10 border-blue-500/30 text-blue-400">
               <FileText className="h-4 w-4 flex-shrink-0" />
               <span>
-                Using template-based SMS messages. Add OPENAI_API_KEY environment variable to enable AI-generated
-                messages.
+                Using template-based SMS messages. Add OPENAI_API_KEY
+                environment variable to enable AI-generated messages.
               </span>
             </div>
           )}
@@ -312,8 +329,12 @@ export default function SmsPage() {
                     Add SMS Recipient
                   </CardTitle>
                   <CardDescription className="text-gray-400">
-                    Add new recipients to receive SMS notifications. They'll get an automatic{" "}
-                    {aiSmsGenerator.isAiAvailable() ? "AI-generated" : "template-based"} welcome message!
+                    Add new recipients to receive SMS notifications. They'll get
+                    an automatic{" "}
+                    {aiSmsGenerator.isAiAvailable()
+                      ? "AI-generated"
+                      : "template-based"}{" "}
+                    welcome message!
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -326,7 +347,12 @@ export default function SmsPage() {
                         id="recipientName"
                         placeholder="John Doe"
                         value={newRecipient.name}
-                        onChange={(e) => setNewRecipient((prev) => ({ ...prev, name: e.target.value }))}
+                        onChange={(e) =>
+                          setNewRecipient((prev) => ({
+                            ...prev,
+                            name: e.target.value,
+                          }))
+                        }
                         className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                         required
                         disabled={addingRecipient}
@@ -342,13 +368,21 @@ export default function SmsPage() {
                         type="tel"
                         placeholder="0241234567 or +233241234567"
                         value={newRecipient.phone}
-                        onChange={(e) => setNewRecipient((prev) => ({ ...prev, phone: e.target.value }))}
+                        onChange={(e) =>
+                          setNewRecipient((prev) => ({
+                            ...prev,
+                            phone: e.target.value,
+                          }))
+                        }
                         className="bg-gray-800 border-gray-700 text-white placeholder-gray-400 focus:border-cyan-500"
                         required
                         disabled={addingRecipient}
                       />
                       <p className="text-xs text-gray-500">
-                        📱 Will receive automatic {aiSmsGenerator.isAiAvailable() ? "AI-generated" : "template-based"}{" "}
+                        📱 Will receive automatic{" "}
+                        {aiSmsGenerator.isAiAvailable()
+                          ? "AI-generated"
+                          : "template-based"}{" "}
                         welcome message via Arkesel
                       </p>
                     </div>
@@ -384,7 +418,9 @@ export default function SmsPage() {
                 </CardHeader>
                 <CardContent>
                   {recipients.length === 0 ? (
-                    <p className="text-gray-400 text-center py-4">No recipients added yet</p>
+                    <p className="text-gray-400 text-center py-4">
+                      No recipients added yet
+                    </p>
                   ) : (
                     <div className="space-y-3">
                       {recipients.map((recipient) => (
@@ -393,12 +429,20 @@ export default function SmsPage() {
                           className="flex items-center justify-between p-3 bg-gray-800/50 rounded-lg border border-gray-700"
                         >
                           <div>
-                            <p className="text-white font-medium">{recipient.name}</p>
-                            <p className="text-gray-400 text-sm">{recipient.phone}</p>
+                            <p className="text-white font-medium">
+                              {recipient.name}
+                            </p>
+                            <p className="text-gray-400 text-sm">
+                              {recipient.phone}
+                            </p>
                           </div>
                           <div className="flex items-center space-x-2">
                             <Badge
-                              variant={recipient.status === "active" ? "default" : "secondary"}
+                              variant={
+                                recipient.status === "active"
+                                  ? "default"
+                                  : "secondary"
+                              }
                               className={
                                 recipient.status === "active"
                                   ? "bg-green-500/20 text-green-400 border-green-500/30"
@@ -410,7 +454,12 @@ export default function SmsPage() {
                             <Button
                               variant="ghost"
                               size="sm"
-                              onClick={() => handleDeleteRecipient(recipient.id, recipient.name)}
+                              onClick={() =>
+                                handleDeleteRecipient(
+                                  recipient.id,
+                                  recipient.name
+                                )
+                              }
                               className="text-red-400 hover:text-red-300 hover:bg-red-500/10"
                             >
                               <Trash2 className="h-4 w-4" />
@@ -434,7 +483,8 @@ export default function SmsPage() {
                     Send Bulk SMS
                   </CardTitle>
                   <CardDescription className="text-gray-400">
-                    Send a message to all active recipients ({recipients.filter((r) => r.status === "active").length}{" "}
+                    Send a message to all active recipients (
+                    {recipients.filter((r) => r.status === "active").length}{" "}
                     recipients)
                   </CardDescription>
                 </CardHeader>
@@ -454,7 +504,8 @@ export default function SmsPage() {
                         disabled={sending}
                       />
                       <p className="text-xs text-gray-500">
-                        Character count: {bulkMessage.length}/160 ({Math.ceil(bulkMessage.length / 160) || 1} SMS
+                        Character count: {bulkMessage.length}/160 (
+                        {Math.ceil(bulkMessage.length / 160) || 1} SMS
                         {Math.ceil(bulkMessage.length / 160) > 1 ? "s" : ""})
                       </p>
                     </div>
@@ -462,7 +513,11 @@ export default function SmsPage() {
                     <Button
                       type="submit"
                       className="w-full bg-gradient-to-r from-purple-500 to-pink-500 hover:from-purple-600 hover:to-pink-600"
-                      disabled={sending || recipients.filter((r) => r.status === "active").length === 0}
+                      disabled={
+                        sending ||
+                        recipients.filter((r) => r.status === "active")
+                          .length === 0
+                      }
                     >
                       {sending ? (
                         <>
@@ -472,7 +527,12 @@ export default function SmsPage() {
                       ) : (
                         <>
                           <Send className="h-4 w-4 mr-2" />
-                          Send to {recipients.filter((r) => r.status === "active").length} Recipients
+                          Send to{" "}
+                          {
+                            recipients.filter((r) => r.status === "active")
+                              .length
+                          }{" "}
+                          Recipients
                         </>
                       )}
                     </Button>
@@ -490,11 +550,16 @@ export default function SmsPage() {
                 </CardHeader>
                 <CardContent>
                   {messages.length === 0 ? (
-                    <p className="text-gray-400 text-center py-4">No messages sent yet</p>
+                    <p className="text-gray-400 text-center py-4">
+                      No messages sent yet
+                    </p>
                   ) : (
                     <div className="space-y-3">
                       {messages.map((msg) => (
-                        <div key={msg.id} className="p-3 bg-gray-800/30 rounded-lg border border-gray-700">
+                        <div
+                          key={msg.id}
+                          className="p-3 bg-gray-800/30 rounded-lg border border-gray-700"
+                        >
                           <div className="flex items-center justify-between mb-2">
                             <Badge
                               variant="outline"
@@ -502,14 +567,18 @@ export default function SmsPage() {
                                 msg.message_type === "welcome"
                                   ? "border-purple-500/50 text-purple-400"
                                   : msg.message_type === "car_registration"
-                                    ? "border-cyan-500/50 text-cyan-400"
-                                    : "border-gray-500/50 text-gray-400"
+                                  ? "border-cyan-500/50 text-cyan-400"
+                                  : "border-gray-500/50 text-gray-400"
                               }
                             >
-                              {msg.message_type === "welcome" && <Heart className="h-3 w-3 mr-1" />}
+                              {msg.message_type === "welcome" && (
+                                <Heart className="h-3 w-3 mr-1" />
+                              )}
                               {msg.message_type}
                             </Badge>
-                            <span className="text-xs text-gray-500">{new Date(msg.sent_at).toLocaleDateString()}</span>
+                            <span className="text-xs text-gray-500">
+                              {new Date(msg.sent_at).toLocaleDateString()}
+                            </span>
                           </div>
                           <p className="text-gray-300 text-sm mb-2">
                             {msg.message_content.length > 100
@@ -519,7 +588,11 @@ export default function SmsPage() {
                           <div className="flex items-center justify-between text-xs text-gray-500">
                             <span>{msg.recipients_count} recipient(s)</span>
                             <Badge
-                              variant={msg.status === "sent" ? "default" : "destructive"}
+                              variant={
+                                msg.status === "sent"
+                                  ? "default"
+                                  : "destructive"
+                              }
                               className={
                                 msg.status === "sent"
                                   ? "bg-green-500/20 text-green-400 border-green-500/30"
@@ -540,5 +613,5 @@ export default function SmsPage() {
         </div>
       </div>
     </div>
-  )
+  );
 }

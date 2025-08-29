@@ -56,7 +56,7 @@
 }
 
 @theme inline {
-  /* optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx */
+  optional: --font-sans, --font-serif, --font-mono if they are applied in the layout.tsx;
 
   --color-background: var(--background);
   --color-foreground: var(--foreground);

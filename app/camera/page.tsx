@@ -284,7 +284,11 @@ export default function CameraFeed() {
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-4">
                 <Link href="/">
-                  <Button variant="ghost" size="sm" className="text-cyan-400 hover:text-cyan-300">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-cyan-400 hover:text-cyan-300"
+                  >
                     <ArrowLeft className="h-4 w-4 mr-2" />
                     Back
                   </Button>
@@ -294,10 +298,16 @@ export default function CameraFeed() {
                 </h1>
               </div>
               <div className="flex items-center space-x-4">
-                <Badge variant="secondary" className="bg-green-500/20 text-green-400 border-green-500/30">
-                  {cameras.length} Camera{cameras.length !== 1 ? "s" : ""} Available
+                <Badge
+                  variant="secondary"
+                  className="bg-green-500/20 text-green-400 border-green-500/30"
+                >
+                  {cameras.length} Camera{cameras.length !== 1 ? "s" : ""}{" "}
+                  Available
                 </Badge>
-                <span className="text-sm text-gray-300">{user.user_metadata?.first_name || user.email}</span>
+                <span className="text-sm text-gray-300">
+                  {user.user_metadata?.first_name || user.email}
+                </span>
               </div>
             </div>
           </div>
@@ -314,10 +324,18 @@ export default function CameraFeed() {
                       Device Camera Stream
                     </CardTitle>
                     <div className="flex items-center space-x-2">
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-cyan-400">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-400 hover:text-cyan-400"
+                      >
                         <Settings className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="sm" className="text-gray-400 hover:text-cyan-400">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="text-gray-400 hover:text-cyan-400"
+                      >
                         <Maximize className="h-4 w-4" />
                       </Button>
                     </div>
@@ -332,14 +350,32 @@ export default function CameraFeed() {
                 <CardContent>
                   <div className="aspect-video bg-gray-800 rounded-lg overflow-hidden border border-gray-700 relative">
                     {isStreaming ? (
-                      <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+                      <video
+                        ref={videoRef}
+                        autoPlay
+                        muted
+                        playsInline
+                        className="w-full h-full object-cover"
+                      />
                     ) : (
                       <div className="flex items-center justify-center h-full">
+                        <video
+                          ref={videoRef}
+                          autoPlay
+                          muted
+                          playsInline
+                          className="w-full h-full object-cover"
+                        />
+
                         <div className="text-center">
                           <Camera className="h-16 w-16 text-gray-600 mx-auto mb-4" />
-                          <p className="text-gray-400 mb-2">Select a camera and start streaming</p>
+                          <p className="text-gray-400 mb-2">
+                            Select a camera and start streaming
+                          </p>
                           {permissionStatus === "denied" && (
-                            <p className="text-red-400 text-sm">Camera permission required</p>
+                            <p className="text-red-400 text-sm">
+                              Camera permission required
+                            </p>
                           )}
                         </div>
                       </div>
@@ -372,11 +408,20 @@ export default function CameraFeed() {
                           disabled={isLoadingCameras || isStreaming}
                         >
                           <SelectTrigger className="bg-gray-800 border-gray-700 text-white">
-                            <SelectValue placeholder={isLoadingCameras ? "Loading cameras..." : "Select Camera"} />
+                            <SelectValue
+                              placeholder={
+                                isLoadingCameras
+                                  ? "Loading cameras..."
+                                  : "Select Camera"
+                              }
+                            />
                           </SelectTrigger>
                           <SelectContent className="bg-gray-800 border-gray-700">
                             {cameras.map((camera, index) => (
-                              <SelectItem key={camera.deviceId} value={camera.deviceId}>
+                              <SelectItem
+                                key={camera.deviceId}
+                                value={camera.deviceId}
+                              >
                                 <div className="flex items-center space-x-2">
                                   <Camera className="h-4 w-4 text-cyan-400" />
                                   <span>{camera.label}</span>
@@ -394,7 +439,11 @@ export default function CameraFeed() {
                           variant="outline"
                           className="border-gray-600 text-gray-300 hover:bg-gray-800 bg-transparent"
                         >
-                          <RefreshCw className={`h-4 w-4 mr-2 ${isLoadingCameras ? "animate-spin" : ""}`} />
+                          <RefreshCw
+                            className={`h-4 w-4 mr-2 ${
+                              isLoadingCameras ? "animate-spin" : ""
+                            }`}
+                          />
                           Refresh
                         </Button>
 
@@ -419,13 +468,19 @@ export default function CameraFeed() {
                     {selectedCameraId && cameras.length > 0 && (
                       <div className="text-sm text-gray-400 bg-gray-800/50 rounded p-3">
                         <p>
-                          <strong>Selected:</strong> {cameras.find((c) => c.deviceId === selectedCameraId)?.label}
+                          <strong>Selected:</strong>{" "}
+                          {
+                            cameras.find((c) => c.deviceId === selectedCameraId)
+                              ?.label
+                          }
                         </p>
                         <p>
-                          <strong>Device ID:</strong> {selectedCameraId.substring(0, 20)}...
+                          <strong>Device ID:</strong>{" "}
+                          {selectedCameraId.substring(0, 20)}...
                         </p>
                         <p>
-                          <strong>Status:</strong> {isStreaming ? "Streaming" : "Ready"}
+                          <strong>Status:</strong>{" "}
+                          {isStreaming ? "Streaming" : "Ready"}
                         </p>
                       </div>
                     )}
@@ -437,9 +492,12 @@ export default function CameraFeed() {
             <div className="space-y-6">
               <Card className="bg-gray-900/50 border-cyan-500/30">
                 <CardHeader>
-                  <CardTitle className="text-cyan-400">Available Cameras</CardTitle>
+                  <CardTitle className="text-cyan-400">
+                    Available Cameras
+                  </CardTitle>
                   <CardDescription className="text-gray-400">
-                    {cameras.length} device camera{cameras.length !== 1 ? "s" : ""} detected
+                    {cameras.length} device camera
+                    {cameras.length !== 1 ? "s" : ""} detected
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -447,7 +505,9 @@ export default function CameraFeed() {
                     {isLoadingCameras ? (
                       <div className="text-center py-4">
                         <RefreshCw className="h-6 w-6 text-cyan-400 mx-auto mb-2 animate-spin" />
-                        <p className="text-gray-400 text-sm">Detecting cameras...</p>
+                        <p className="text-gray-400 text-sm">
+                          Detecting cameras...
+                        </p>
                       </div>
                     ) : cameras.length > 0 ? (
                       cameras.map((camera, index) => (
@@ -458,17 +518,25 @@ export default function CameraFeed() {
                               ? "bg-cyan-500/20 border-cyan-500/50"
                               : "bg-gray-800/50 border-gray-700/50 hover:border-gray-600/50"
                           }`}
-                          onClick={() => !isStreaming && setSelectedCameraId(camera.deviceId)}
+                          onClick={() =>
+                            !isStreaming && setSelectedCameraId(camera.deviceId)
+                          }
                         >
                           <div className="flex items-center space-x-3">
                             <Camera className="h-4 w-4 text-cyan-400" />
                             <div>
-                              <p className="text-white font-medium">{camera.label}</p>
-                              <p className="text-gray-400 text-xs">Camera {index + 1}</p>
+                              <p className="text-white font-medium">
+                                {camera.label}
+                              </p>
+                              <p className="text-gray-400 text-xs">
+                                Camera {index + 1}
+                              </p>
                             </div>
                           </div>
                           {selectedCameraId === camera.deviceId && (
-                            <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">Selected</Badge>
+                            <Badge className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
+                              Selected
+                            </Badge>
                           )}
                         </div>
                       ))
@@ -476,7 +544,9 @@ export default function CameraFeed() {
                       <div className="text-center py-8">
                         <AlertCircle className="h-12 w-12 text-gray-600 mx-auto mb-3" />
                         <p className="text-gray-400">No cameras detected</p>
-                        <p className="text-gray-500 text-sm mb-4">Check camera permissions</p>
+                        <p className="text-gray-500 text-sm mb-4">
+                          Check camera permissions
+                        </p>
                         <Button
                           onClick={refreshCameras}
                           size="sm"
@@ -493,21 +563,38 @@ export default function CameraFeed() {
 
               <Card className="bg-gray-900/50 border-cyan-500/30">
                 <CardHeader>
-                  <CardTitle className="text-cyan-400">Recent Detections</CardTitle>
-                  <CardDescription className="text-gray-400">AI-powered license plate detection</CardDescription>
+                  <CardTitle className="text-cyan-400">
+                    Recent Detections
+                  </CardTitle>
+                  <CardDescription className="text-gray-400">
+                    AI-powered license plate detection
+                  </CardDescription>
                 </CardHeader>
                 <CardContent>
                   {detectedCars.length > 0 ? (
                     <div className="space-y-3">
                       {detectedCars.map((car) => (
-                        <div key={car.id} className="p-3 rounded-lg bg-gray-800/50 border border-gray-700/50">
+                        <div
+                          key={car.id}
+                          className="p-3 rounded-lg bg-gray-800/50 border border-gray-700/50"
+                        >
                           <div className="flex items-center justify-between mb-2">
-                            <span className="text-white font-mono font-bold">{car.license}</span>
-                            <Badge variant="secondary" className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30">
-                              {(Number.parseFloat(car.confidence) * 100).toFixed(0)}%
+                            <span className="text-white font-mono font-bold">
+                              {car.license}
+                            </span>
+                            <Badge
+                              variant="secondary"
+                              className="bg-cyan-500/20 text-cyan-400 border-cyan-500/30"
+                            >
+                              {(
+                                Number.parseFloat(car.confidence) * 100
+                              ).toFixed(0)}
+                              %
                             </Badge>
                           </div>
-                          <p className="text-gray-400 text-sm">{car.timestamp}</p>
+                          <p className="text-gray-400 text-sm">
+                            {car.timestamp}
+                          </p>
                         </div>
                       ))}
                     </div>
@@ -515,7 +602,9 @@ export default function CameraFeed() {
                     <div className="text-center py-8">
                       <Camera className="h-12 w-12 text-gray-600 mx-auto mb-3" />
                       <p className="text-gray-400">No detections yet</p>
-                      <p className="text-gray-500 text-sm">Start streaming to detect vehicles</p>
+                      <p className="text-gray-500 text-sm">
+                        Start streaming to detect vehicles
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -525,5 +614,5 @@ export default function CameraFeed() {
         </div>
       </div>
     </div>
-  )
+  );
 }
