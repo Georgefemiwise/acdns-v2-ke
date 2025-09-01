@@ -1,145 +1,104 @@
-"use client"
+import React, { useEffect, useRef, useState } from "react";
 
-import { useEffect, useRef, useState } from "react"
-import { motion } from "framer-motion"
+export default function CarDetectionStream() {
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const wsRef = useRef(null);
+  const [status, setStatus] = useState("⏳ Connecting...");
+  const [detection, setDetection] = useState(null);
 
-export default function CameraFeed() {
-  const videoRef = useRef<HTMLVideoElement>(null)
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([])
-  const [selectedDevice, setSelectedDevice] = useState<string>("")
-  const [error, setError] = useState("")
-  const [streaming, setStreaming] = useState(false)
-
-  // ✅ Fetch available video input devices (cameras)
   useEffect(() => {
-    async function loadDevices() {
+    // 1. Setup webcam
+    const startCamera = async () => {
       try {
-        const allDevices = await navigator.mediaDevices.enumerateDevices()
-        const cams = allDevices.filter((d) => d.kind === "videoinput")
-        setDevices(cams)
-
-        if (cams.length > 0) {
-          setSelectedDevice(cams[0].deviceId)
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        if (videoRef.current) {
+          videoRef.current.srcObject = stream;
         }
       } catch (err) {
-        console.error("Device error:", err)
-        setError("Could not load camera devices.")
+        console.error("Error accessing webcam:", err);
+        setStatus("❌ Webcam access denied");
       }
-    }
+    };
 
-    loadDevices()
-  }, [])
+    // 2. Setup WebSocket
+    const startWebSocket = () => {
+      wsRef.current = new WebSocket"wss://georgefemiwise-acdns.hf.space/ws/stream"); // change to your backend URL
+      wsRef.current.binaryType = "arraybuffer";
 
-  // ✅ Start webcam feed
-  const startStream = async () => {
-    try {
-      if (!selectedDevice) {
-        setError("No camera selected.")
-        return
+      wsRef.current.onopen = () => setStatus("✅ Connected to backend");
+      wsRef.current.onclose = () => setStatus("🔌 Disconnected");
+      wsRef.current.onerror = (err) => {
+        console.error("WebSocket error:", err);
+        setStatus("⚠️ Connection error");
+      };
+
+      wsRef.current.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          setDetection(data);
+        } catch (err) {
+          console.error("Error parsing WS message:", err);
+        }
+      };
+    };
+
+    startCamera();
+    startWebSocket();
+
+    // 3. Frame sending loop
+    const interval = setInterval(() => {
+      if (videoRef.current && canvasRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
+        const canvas = canvasRef.current;
+        const ctx = canvas.getContext("2d");
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob((blob) => {
+          if (blob) {
+            blob.arrayBuffer().then((buffer) => {
+              wsRef.current.send(buffer);
+            });
+          }
+        }, "image/jpeg", 0.8);
       }
+    }, 1000); // 1 frame per second
 
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: selectedDevice } },
-        audio: false,
-      })
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream
-        await videoRef.current.play()
-      }
-
-      setStreaming(true)
-      setError("")
-    } catch (err) {
-      console.error("Camera error:", err)
-      setError("Could not access webcam. Please allow permissions.")
-    }
-  }
-
-  // ✅ Stop webcam feed
-  const stopStream = () => {
-    if (videoRef.current && videoRef.current.srcObject instanceof MediaStream) {
-      videoRef.current.srcObject.getTracks().forEach((track) => track.stop())
-      videoRef.current.srcObject = null
-    }
-    setStreaming(false)
-  }
+    return () => {
+      clearInterval(interval);
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 flex flex-col items-center justify-center p-6">
-      <motion.h1
-        className="text-3xl font-extrabold text-cyan-400 mb-6 drop-shadow-lg"
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-      >
-        Automatic Car Detection System
-      </motion.h1>
+    <div className="flex flex-col items-center p-6 bg-gray-100 min-h-screen">
+      <h1 className="text-2xl font-bold mb-4">🚗 Automatic Car Detection</h1>
 
-      {/* Camera Container */}
-      <motion.div
-        className="bg-gray-800 rounded-2xl shadow-2xl p-6 w-[720px] flex flex-col items-center"
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-      >
-        {/* Device Selector */}
-        <div className="mb-4 w-full flex justify-between items-center">
-          <label className="text-sm text-gray-300">Select Camera:</label>
-          <select
-            value={selectedDevice}
-            onChange={(e) => setSelectedDevice(e.target.value)}
-            className="text-black px-3 py-2 rounded-lg focus:ring-2 focus:ring-cyan-400"
-          >
-            {devices.length > 0 ? (
-              devices.map((device, idx) => (
-                <option key={device.deviceId} value={device.deviceId}>
-                  {device.label || `Camera ${idx + 1}`}
-                </option>
-              ))
-            ) : (
-              <option>No cameras found</option>
-            )}
-          </select>
-        </div>
+      {/* Video preview */}
+      <div className="relative">
+        <video ref={videoRef} autoPlay playsInline className="rounded-xl shadow-lg border w-[640px] h-[480px]" />
+        <canvas ref={canvasRef} width="640" height="480" className="hidden" />
+      </div>
 
-        {/* Video Feed */}
-        <div className="mb-6 relative">
-          {error ? (
-            <p className="text-red-400">{error}</p>
+      {/* Connection status */}
+      <p className="mt-4 text-gray-700">{status}</p>
+
+      {/* Detection results */}
+      {detection && (
+        <div className="mt-6 p-4 bg-white shadow rounded-xl w-[400px] text-center">
+          {detection.status === "detected" ? (
+            <>
+              <p className="text-lg font-semibold text-green-600">✅ Plate Detected</p>
+              <p className="text-gray-800">Plate: {detection.plate}</p>
+              <p className="text-gray-600">Confidence: {(detection.confidence * 100).toFixed(2)}%</p>
+              <p className="text-gray-600">
+                Registered: {detection.registered ? "Yes" : "No"}
+              </p>
+            </>
           ) : (
-            <video
-              ref={videoRef}
-              autoPlay
-              muted
-              playsInline
-              className="w-[640px] h-[480px] bg-black rounded-xl shadow-lg border-4 border-cyan-500"
-            />
-          )}
-          {streaming && (
-            <div className="absolute top-3 left-3 bg-red-600 text-xs text-white px-2 py-1 rounded-lg shadow">
-              LIVE
-            </div>
+            <p className="text-gray-500">🔎 No plate detected</p>
           )}
         </div>
-
-        {/* Controls */}
-        <div className="space-x-4 flex">
-          {!streaming ? (
-            <button
-              onClick={startStream}
-              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white px-5 py-2 rounded-xl shadow-lg transition transform hover:scale-105"
-            >
-              Start Stream
-            </button>
-          ) : (
-            <button
-              onClick={stopStream}
-              className="bg-gradient-to-r from-red-500 to-rose-600 hover:from-red-600 hover:to-rose-700 text-white px-5 py-2 rounded-xl shadow-lg transition transform hover:scale-105"
-            >
-              Stop Stream
-            </button>
-          )}
-        </div>
-      </motion.div>
+      )}
     </div>
-  )
+  );
 }
