@@ -1,106 +1,106 @@
 "use client";
-
 import React, { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 export default function CarDetectionStream() {
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const wsRef = useRef(null);
-  const [status, setStatus] = useState("⏳ Connecting...");
-  const [detection, setDetection] = useState(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
+  const [stream, setStream] = useState<MediaStream | null>(null);
+  const router = useRouter();
 
+  // Get list of cameras
   useEffect(() => {
-    // 1. Setup webcam
-    const startCamera = async () => {
+    async function loadDevices() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
+        const allDevices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = allDevices.filter((d) => d.kind === "videoinput");
+        setDevices(videoDevices);
+        if (videoDevices.length > 0) {
+          setSelectedDeviceId(videoDevices[0].deviceId);
         }
       } catch (err) {
-        console.error("Error accessing webcam:", err);
-        setStatus("❌ Webcam access denied");
+        console.error("Error loading devices:", err);
       }
-    };
-
-    // 2. Setup WebSocket
-    const startWebSocket = () => {
-      wsRef.current = new WebSocket("wss://georgefemiwise-acdns.hf.space/ws/stream"); // change to your backend URL
-      wsRef.current.binaryType = "arraybuffer";
-
-      wsRef.current.onopen = () => setStatus("✅ Connected to backend");
-      wsRef.current.onclose = () => setStatus("🔌 Disconnected");
-      wsRef.current.onerror = (err) => {
-        console.error("WebSocket error:", err);
-        setStatus("⚠️ Connection error");
-      };
-
-      wsRef.current.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          setDetection(data);
-        } catch (err) {
-          console.error("Error parsing WS message:", err);
-        }
-      };
-    };
-
-    startCamera();
-    startWebSocket();
-
-    // 3. Frame sending loop
-    const interval = setInterval(() => {
-      if (videoRef.current && canvasRef.current && wsRef.current?.readyState === WebSocket.OPEN) {
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext("2d");
-        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-
-        canvas.toBlob((blob) => {
-          if (blob) {
-            blob.arrayBuffer().then((buffer) => {
-              wsRef.current.send(buffer);
-            });
-          }
-        }, "image/jpeg", 0.8);
-      }
-    }, 1000); // 1 frame per second
-
-    return () => {
-      clearInterval(interval);
-      if (wsRef.current) wsRef.current.close();
-    };
+    }
+    loadDevices();
   }, []);
 
-  return (
-    <div className="flex flex-col items-center p-6 bg-gray-100 min-h-screen">
-      <h1 className="text-2xl font-bold mb-4">🚗 Automatic Car Detection</h1>
+  // Start stream with selected camera
+  const startStream = async () => {
+    try {
+      if (stream) {
+        stopStream();
+      }
+      const newStream = await navigator.mediaDevices.getUserMedia({
+        video: { deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined },
+      });
+      setStream(newStream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = newStream;
+      }
+    } catch (err) {
+      console.error("Error starting stream:", err);
+    }
+  };
 
-      {/* Video preview */}
-      <div className="relative">
-        <video ref={videoRef} autoPlay playsInline className="rounded-xl shadow-lg border w-[640px] h-[480px]" />
-        <canvas ref={canvasRef} width="640" height="480" className="hidden" />
+  // Stop stream
+  const stopStream = () => {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  return (
+    <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-white space-y-6">
+      <h1 className="text-2xl font-bold">🎥 Car Detection Stream</h1>
+
+      {/* Video Preview */}
+      <div className="relative w-[640px] h-[480px] bg-black rounded-2xl shadow-lg overflow-hidden">
+        <video ref={videoRef} autoPlay playsInline className="w-full h-full object-cover" />
       </div>
 
-      {/* Connection status */}
-      <p className="mt-4 text-gray-700">{status}</p>
+      {/* Controls */}
+      <div className="flex flex-col items-center space-y-4">
+        {/* Camera Select */}
+        <select
+          value={selectedDeviceId}
+          onChange={(e) => setSelectedDeviceId(e.target.value)}
+          className="px-4 py-2 rounded-lg bg-gray-800 text-white border border-gray-600"
+        >
+          {devices.map((device, i) => (
+            <option key={device.deviceId} value={device.deviceId}>
+              {device.label || `Camera ${i + 1}`}
+            </option>
+          ))}
+        </select>
 
-      {/* Detection results */}
-      {detection && (
-        <div className="mt-6 p-4 bg-white shadow rounded-xl w-[400px] text-center">
-          {detection.status === "detected" ? (
-            <>
-              <p className="text-lg font-semibold text-green-600">✅ Plate Detected</p>
-              <p className="text-gray-800">Plate: {detection.plate}</p>
-              <p className="text-gray-600">Confidence: {(detection.confidence * 100).toFixed(2)}%</p>
-              <p className="text-gray-600">
-                Registered: {detection.registered ? "Yes" : "No"}
-              </p>
-            </>
-          ) : (
-            <p className="text-gray-500">🔎 No plate detected</p>
-          )}
+        {/* Buttons */}
+        <div className="flex space-x-4">
+          <button
+            onClick={startStream}
+            className="px-6 py-2 rounded-xl bg-green-600 hover:bg-green-500 shadow-lg"
+          >
+            ▶️ Start Stream
+          </button>
+          <button
+            onClick={stopStream}
+            className="px-6 py-2 rounded-xl bg-red-600 hover:bg-red-500 shadow-lg"
+          >
+            ⏹️ Stop Stream
+          </button>
+          <button
+            onClick={() => router.back()}
+            className="px-6 py-2 rounded-xl bg-gray-700 hover:bg-gray-600 shadow-lg"
+          >
+            ⬅️ Back
+          </button>
         </div>
-      )}
+      </div>
     </div>
   );
 }
