@@ -23,7 +23,7 @@ export default function CarDetectionStream() {
 
     // 2. Setup WebSocket
     const startWebSocket = () => {
-      wsRef.current = new WebSocket"wss://georgefemiwise-acdns.hf.space/ws/stream"); // change to your backend URL
+      wsRef.current = new WebSocket("wss://georgefemiwise-acdns.hf.space/ws/stream"); // change to your backend URL
       wsRef.current.binaryType = "arraybuffer";
 
       wsRef.current.onopen = () => setStatus("✅ Connected to backend");
