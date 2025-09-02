@@ -6,13 +6,13 @@ export default function CarDetectionStream() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const wsRef = useRef<WebSocket | null>(null);
+  const isStreamingRef = useRef(false);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
   const router = useRouter();
 
-  // Hugging Face WebSocket URL
   const WS_URL = "wss://georgefemiwise.acdns.hf.space/stream";
 
   // Load video devices
@@ -32,7 +32,6 @@ export default function CarDetectionStream() {
     loadDevices();
   }, []);
 
-  // Open webcam and WebSocket, start streaming frames
   const startStream = async () => {
     try {
       if (stream) stopStream();
@@ -45,24 +44,31 @@ export default function CarDetectionStream() {
         videoRef.current.srcObject = newStream;
       }
 
-      // Open WebSocket connection
       const ws = new WebSocket(WS_URL);
       ws.binaryType = "arraybuffer";
 
       ws.onopen = () => {
         console.log("WebSocket connected");
+        isStreamingRef.current = true;
         setIsStreaming(true);
         sendFrames(ws);
       };
 
       ws.onclose = () => {
         console.log("WebSocket disconnected");
+        isStreamingRef.current = false;
         setIsStreaming(false);
       };
 
       ws.onerror = (err) => {
         console.error("WebSocket error", err);
+        isStreamingRef.current = false;
         setIsStreaming(false);
+      };
+
+      ws.onmessage = (event) => {
+        console.log("Received from server:", event.data);
+        // Optionally handle server response here
       };
 
       wsRef.current = ws;
@@ -71,7 +77,6 @@ export default function CarDetectionStream() {
     }
   };
 
-  // Stop webcam and close WebSocket
   const stopStream = () => {
     if (wsRef.current) {
       wsRef.current.close();
@@ -84,18 +89,22 @@ export default function CarDetectionStream() {
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    isStreamingRef.current = false;
     setIsStreaming(false);
   };
 
-  // Function to continuously capture and send frames over WebSocket
   const sendFrames = (ws: WebSocket) => {
     const sendFrame = () => {
       if (!ws || ws.readyState !== WebSocket.OPEN) return;
-
       if (!videoRef.current || !canvasRef.current) return;
 
       const video = videoRef.current;
       const canvas = canvasRef.current;
+
+      if (video.videoWidth === 0 || video.videoHeight === 0) {
+        setTimeout(sendFrame, 100);
+        return;
+      }
 
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
@@ -111,15 +120,15 @@ export default function CarDetectionStream() {
         const reader = new FileReader();
         reader.onload = () => {
           if (ws.readyState === WebSocket.OPEN && reader.result instanceof ArrayBuffer) {
+            console.log("Sending frame:", reader.result.byteLength, "bytes");
             ws.send(reader.result);
           }
         };
         reader.readAsArrayBuffer(blob);
       }, "image/jpeg");
 
-      // Schedule next frame capture
-      if (isStreaming) {
-        setTimeout(sendFrame, 300); // every 300ms (adjust as needed)
+      if (isStreamingRef.current) {
+        setTimeout(sendFrame, 300);
       }
     };
 
@@ -140,7 +149,6 @@ export default function CarDetectionStream() {
 
       {/* Controls */}
       <div className="flex flex-col items-center space-y-4">
-        {/* Camera Select */}
         <select
           value={selectedDeviceId}
           onChange={(e) => setSelectedDeviceId(e.target.value)}
@@ -154,7 +162,6 @@ export default function CarDetectionStream() {
           ))}
         </select>
 
-        {/* Buttons */}
         <div className="flex space-x-4">
           <button
             onClick={startStream}
