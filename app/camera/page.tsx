@@ -5,15 +5,17 @@ import { useRouter } from "next/navigation";
 export default function CarDetectionStream() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const wsRef = useRef<WebSocket | null>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [stream, setStream] = useState<MediaStream | null>(null);
-  const [streamingInterval, setStreamingInterval] = useState<number | null>(null);
+  const [isStreaming, setIsStreaming] = useState(false);
   const router = useRouter();
 
-  const API_URL = "https://your-huggingface-space-url.hf.space/predict"; // <-- replace with your actual URL
+  // Hugging Face WebSocket URL
+  const WS_URL = "wss://georgefemiwise.acdns.hf.space/stream";
 
-  // Load available video devices
+  // Load video devices
   useEffect(() => {
     async function loadDevices() {
       try {
@@ -30,12 +32,11 @@ export default function CarDetectionStream() {
     loadDevices();
   }, []);
 
-  // Start webcam stream and begin frame capture
+  // Open webcam and WebSocket, start streaming frames
   const startStream = async () => {
     try {
-      if (stream) {
-        stopStream();
-      }
+      if (stream) stopStream();
+
       const newStream = await navigator.mediaDevices.getUserMedia({
         video: { deviceId: selectedDeviceId ? { exact: selectedDeviceId } : undefined },
       });
@@ -44,20 +45,37 @@ export default function CarDetectionStream() {
         videoRef.current.srcObject = newStream;
       }
 
-      // Start sending frames every 300ms
-     const interval = window.setInterval(sendFrameToBackend, 300);
-setStreamingInterval(interval);
+      // Open WebSocket connection
+      const ws = new WebSocket(WS_URL);
+      ws.binaryType = "arraybuffer";
 
+      ws.onopen = () => {
+        console.log("WebSocket connected");
+        setIsStreaming(true);
+        sendFrames(ws);
+      };
+
+      ws.onclose = () => {
+        console.log("WebSocket disconnected");
+        setIsStreaming(false);
+      };
+
+      ws.onerror = (err) => {
+        console.error("WebSocket error", err);
+        setIsStreaming(false);
+      };
+
+      wsRef.current = ws;
     } catch (err) {
       console.error("Error starting stream:", err);
     }
   };
 
-  // Stop webcam stream and frame sending
+  // Stop webcam and close WebSocket
   const stopStream = () => {
-    if (streamingInterval) {
-      clearInterval(streamingInterval);
-      setStreamingInterval(null);
+    if (wsRef.current) {
+      wsRef.current.close();
+      wsRef.current = null;
     }
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
@@ -66,51 +84,51 @@ setStreamingInterval(interval);
     if (videoRef.current) {
       videoRef.current.srcObject = null;
     }
+    setIsStreaming(false);
   };
 
-  // Capture current video frame and send it to backend
-  const sendFrameToBackend = async () => {
-    if (!videoRef.current || !canvasRef.current) return;
+  // Function to continuously capture and send frames over WebSocket
+  const sendFrames = (ws: WebSocket) => {
+    const sendFrame = () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
 
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
+      if (!videoRef.current || !canvasRef.current) return;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
 
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
 
-    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
 
-    // Convert frame to blob (or base64 if you prefer)
-    canvas.toBlob(async (blob) => {
-      if (!blob) return;
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      const formData = new FormData();
-      formData.append("file", blob, "frame.jpg");
+      canvas.toBlob((blob) => {
+        if (!blob) return;
 
-      try {
-        const res = await fetch(API_URL, {
-          method: "POST",
-          body: formData,
-        });
+        const reader = new FileReader();
+        reader.onload = () => {
+          if (ws.readyState === WebSocket.OPEN && reader.result instanceof ArrayBuffer) {
+            ws.send(reader.result);
+          }
+        };
+        reader.readAsArrayBuffer(blob);
+      }, "image/jpeg");
 
-        if (!res.ok) {
-          console.error("Failed to send frame:", await res.text());
-        } else {
-          const result = await res.json();
-          console.log("Prediction result:", result);
-        }
-      } catch (error) {
-        console.error("Error sending frame:", error);
+      // Schedule next frame capture
+      if (isStreaming) {
+        setTimeout(sendFrame, 300); // every 300ms (adjust as needed)
       }
-    }, "image/jpeg");
+    };
+
+    sendFrame();
   };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-white space-y-6">
-      <h1 className="text-2xl font-bold">🎥 Car Detection Stream</h1>
+      <h1 className="text-2xl font-bold">🎥 Car Detection Stream (WebSocket)</h1>
 
       {/* Hidden canvas for frame capture */}
       <canvas ref={canvasRef} style={{ display: "none" }} />
@@ -127,6 +145,7 @@ setStreamingInterval(interval);
           value={selectedDeviceId}
           onChange={(e) => setSelectedDeviceId(e.target.value)}
           className="px-4 py-2 rounded-lg bg-gray-800 text-white border border-gray-600"
+          disabled={isStreaming}
         >
           {devices.map((device, i) => (
             <option key={device.deviceId} value={device.deviceId}>
@@ -139,13 +158,15 @@ setStreamingInterval(interval);
         <div className="flex space-x-4">
           <button
             onClick={startStream}
-            className="px-6 py-2 rounded-xl bg-green-600 hover:bg-green-500 shadow-lg"
+            disabled={isStreaming}
+            className="px-6 py-2 rounded-xl bg-green-600 hover:bg-green-500 shadow-lg disabled:opacity-50"
           >
             ▶️ Start Stream
           </button>
           <button
             onClick={stopStream}
-            className="px-6 py-2 rounded-xl bg-red-600 hover:bg-red-500 shadow-lg"
+            disabled={!isStreaming}
+            className="px-6 py-2 rounded-xl bg-red-600 hover:bg-red-500 shadow-lg disabled:opacity-50"
           >
             ⏹️ Stop Stream
           </button>
