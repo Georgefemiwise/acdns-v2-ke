@@ -4,12 +4,16 @@ import { useRouter } from "next/navigation";
 
 export default function CarDetectionStream() {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [selectedDeviceId, setSelectedDeviceId] = useState<string>("");
   const [stream, setStream] = useState<MediaStream | null>(null);
+  const [streamingInterval, setStreamingInterval] = useState<number | null>(null);
   const router = useRouter();
 
-  // Get list of cameras
+  const API_URL = "https://your-huggingface-space-url.hf.space/predict"; // <-- replace with your actual URL
+
+  // Load available video devices
   useEffect(() => {
     async function loadDevices() {
       try {
@@ -26,7 +30,7 @@ export default function CarDetectionStream() {
     loadDevices();
   }, []);
 
-  // Start stream with selected camera
+  // Start webcam stream and begin frame capture
   const startStream = async () => {
     try {
       if (stream) {
@@ -39,13 +43,22 @@ export default function CarDetectionStream() {
       if (videoRef.current) {
         videoRef.current.srcObject = newStream;
       }
+
+      // Start sending frames every 300ms
+     const interval = window.setInterval(sendFrameToBackend, 300);
+setStreamingInterval(interval);
+
     } catch (err) {
       console.error("Error starting stream:", err);
     }
   };
 
-  // Stop stream
+  // Stop webcam stream and frame sending
   const stopStream = () => {
+    if (streamingInterval) {
+      clearInterval(streamingInterval);
+      setStreamingInterval(null);
+    }
     if (stream) {
       stream.getTracks().forEach((track) => track.stop());
       setStream(null);
@@ -55,9 +68,52 @@ export default function CarDetectionStream() {
     }
   };
 
+  // Capture current video frame and send it to backend
+  const sendFrameToBackend = async () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Convert frame to blob (or base64 if you prefer)
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+
+      const formData = new FormData();
+      formData.append("file", blob, "frame.jpg");
+
+      try {
+        const res = await fetch(API_URL, {
+          method: "POST",
+          body: formData,
+        });
+
+        if (!res.ok) {
+          console.error("Failed to send frame:", await res.text());
+        } else {
+          const result = await res.json();
+          console.log("Prediction result:", result);
+        }
+      } catch (error) {
+        console.error("Error sending frame:", error);
+      }
+    }, "image/jpeg");
+  };
+
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-950 text-white space-y-6">
       <h1 className="text-2xl font-bold">🎥 Car Detection Stream</h1>
+
+      {/* Hidden canvas for frame capture */}
+      <canvas ref={canvasRef} style={{ display: "none" }} />
 
       {/* Video Preview */}
       <div className="relative w-[640px] h-[480px] bg-black rounded-2xl shadow-lg overflow-hidden">
