@@ -135,7 +135,7 @@ const [intervalId, setIntervalId] = useState<ReturnType<
               autoPlay
               playsInline
               muted
-              className="w-full max-w- rounded-md border shadow"
+              className="w-full max-w-5xl rounded-md border shadow"
             />
             <canvas ref={canvasRef} width={640} height={480} hidden />
 
