@@ -4,22 +4,54 @@ import { useEffect, useRef, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Camera, Play, Square } from "lucide-react";
 
 export default function CameraFeed() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isStreaming, setIsStreaming] = useState(false);
-const [intervalId, setIntervalId] = useState<ReturnType<
-  typeof setInterval
-> | null>(null);
+  const [intervalId, setIntervalId] = useState<ReturnType<
+    typeof setInterval
+  > | null>(null);
   const [result, setResult] = useState<any>(null);
 
-  // start streaming (with snapshots every 0.9s)
+  const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
+  const [selectedCameraId, setSelectedCameraId] = useState<string>("");
+
+  // get list of cameras
+  useEffect(() => {
+    const loadCameras = async () => {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter((d) => d.kind === "videoinput");
+        setCameras(videoDevices);
+        if (videoDevices.length > 0) {
+          setSelectedCameraId(videoDevices[0].deviceId);
+        }
+      } catch (err) {
+        console.error("Error loading cameras:", err);
+      }
+    };
+
+    loadCameras();
+  }, []);
+
+  // start streaming with selected camera
   const startStream = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { width: 640, height: 480 },
+        video: {
+          deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
+          width: 640,
+          height: 480,
+        },
       });
 
       if (videoRef.current) {
@@ -48,7 +80,7 @@ const [intervalId, setIntervalId] = useState<ReturnType<
     setIntervalId(null);
   };
 
-  // capture one frame and send to backend
+  // capture one frame
   const captureAndSendFrame = () => {
     if (!videoRef.current || !canvasRef.current) return;
 
@@ -72,8 +104,7 @@ const [intervalId, setIntervalId] = useState<ReturnType<
           }
         );
         const data = await res.json();
-        setResult(data); // store detection result
-        console.log("📸 Detection:", data);
+        setResult(data);
       } catch (err) {
         console.error("❌ Error sending frame:", err);
       }
@@ -90,7 +121,7 @@ const [intervalId, setIntervalId] = useState<ReturnType<
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 p-6">
       <div className="max-w-5xl mx-auto">
         <Card className="bg-gray-900/50 border-cyan-500/30">
-          <CardHeader className="flex">
+          <CardHeader className="flex justify-between items-center">
             <CardTitle className="text-cyan-400 flex items-center">
               <Camera className="mr-2 h-5 w-5" />
               Device Camera Stream
@@ -108,7 +139,25 @@ const [intervalId, setIntervalId] = useState<ReturnType<
           </CardHeader>
 
           <CardContent>
+            {/* camera selector */}
             <div className="mb-4 flex items-center space-x-4">
+              <Select
+                value={selectedCameraId}
+                onValueChange={setSelectedCameraId}
+                disabled={isStreaming}
+              >
+                <SelectTrigger className="w-[240px]">
+                  <SelectValue placeholder="Select Camera" />
+                </SelectTrigger>
+                <SelectContent>
+                  {cameras.map((cam) => (
+                    <SelectItem key={cam.deviceId} value={cam.deviceId}>
+                      {cam.label || `Camera ${cameras.indexOf(cam) + 1}`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
               <Button
                 onClick={isStreaming ? stopStream : startStream}
                 className={
