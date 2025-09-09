@@ -12,6 +12,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Camera, Play, Square } from "lucide-react";
+import { sendDetectionAlert } from "@/lib/sms-service";
+
+type SeenPlate = {
+  plate: string;
+  timestamp: number; // when it was stored
+};
 
 export default function CameraFeed() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -24,6 +30,11 @@ export default function CameraFeed() {
 
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>("");
+
+  const [seenPlates, setSeenPlates] = useState<SeenPlate[]>([]);
+
+  // ⏳ expiry duration (24 hours in ms)
+  const EXPIRY_DURATION = 24 * 60 * 60 * 1000;
 
   // get list of cameras
   useEffect(() => {
@@ -81,7 +92,7 @@ export default function CameraFeed() {
   };
 
   // capture one frame
-  const captureAndSendFrame = () => {
+  const captureAndSendFrame = async () => {
     if (!videoRef.current || !canvasRef.current) return;
 
     const ctx = canvasRef.current.getContext("2d");
@@ -104,12 +115,55 @@ export default function CameraFeed() {
           }
         );
         const data = await res.json();
-        setResult(data);
+
+        if (data.detections?.length) {
+          data.detections.forEach(async (det: any) => {
+            const plate = det.text;
+            const confidence = det.conf;
+            if (!plate) return;
+
+            const now = Date.now();
+            const alreadySeen = seenPlates.find(
+              (p) => p.plate === plate && now - p.timestamp < EXPIRY_DURATION
+            );
+
+            if (!alreadySeen) {
+              // send SMS for new plate
+              await fetch("/api/send-sms", {
+                method: "POST",
+                body: JSON.stringify({ plate }),
+                headers: { "Content-Type": "application/json" },
+              });
+
+              // optional: if you want to use your sms-service helper
+              // await sendDetectionAlert([ownerPhone], plate, "Current Location", confidence);
+
+              // add plate with timestamp
+              setSeenPlates((prev) => [...prev, { plate, timestamp: now }]);
+            }
+          });
+        }
       } catch (err) {
-        console.error("❌ Error sending frame:", err);
+        console.error("Error sending frame:", err);
       }
     }, "image/jpeg");
   };
+
+  // Load seen plates from storage, cleanup expired ones
+  useEffect(() => {
+    const saved = localStorage.getItem("seenPlates");
+    if (saved) {
+      const parsed: SeenPlate[] = JSON.parse(saved);
+      const now = Date.now();
+      const valid = parsed.filter((p) => now - p.timestamp < EXPIRY_DURATION);
+      setSeenPlates(valid);
+    }
+  }, []);
+
+  // Save plates to storage whenever updated
+  useEffect(() => {
+    localStorage.setItem("seenPlates", JSON.stringify(seenPlates));
+  }, [seenPlates]);
 
   useEffect(() => {
     return () => {
