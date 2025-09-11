@@ -49,6 +49,7 @@ const SEEN_PLATES_KEY = "seenPlates_v1";
 export default function CameraFeed() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
+
   const [isStreaming, setIsStreaming] = useState(false);
   const [intervalId, setIntervalId] = useState<ReturnType<
     typeof setInterval
@@ -60,22 +61,64 @@ export default function CameraFeed() {
   const [seenPlates, setSeenPlates] = useState<SeenPlate[]>([]);
   const [detections, setDetections] = useState<Detection[]>([]);
 
-  // Load available cameras
+  // new: permission & video readiness states
+  const [permissionStatus, setPermissionStatus] = useState<
+    "unknown" | "granted" | "denied" | "unsupported"
+  >("unknown");
+  const [videoReady, setVideoReady] = useState(false);
+
+  // Load available cameras. If labels are empty, request a quick permission to reveal labels (then stop).
   useEffect(() => {
     const loadCameras = async () => {
+      if (!navigator.mediaDevices || !navigator.mediaDevices.enumerateDevices) {
+        console.warn("MediaDevices API not available");
+        setPermissionStatus("unsupported");
+        return;
+      }
+
       try {
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter((d) => d.kind === "videoinput");
+        // Try to enumerate first (may have empty labels if no permission yet)
+        let devices = await navigator.mediaDevices.enumerateDevices();
+        let videoDevices = devices.filter((d) => d.kind === "videoinput");
+
+        // If labels are missing, request temporary permission to reveal labels
+        const needLabels =
+          videoDevices.length > 0 && videoDevices.every((d) => !d.label);
+        if (needLabels) {
+          try {
+            const tempStream = await navigator.mediaDevices.getUserMedia({
+              video: true,
+            });
+            tempStream.getTracks().forEach((t) => t.stop());
+            setPermissionStatus("granted");
+            // re-enumerate to obtain labels
+            devices = await navigator.mediaDevices.enumerateDevices();
+            videoDevices = devices.filter((d) => d.kind === "videoinput");
+          } catch (permErr) {
+            console.warn(
+              "Permission to list devices denied or not granted:",
+              permErr
+            );
+            setPermissionStatus("denied");
+          }
+        } else {
+          // if we have labels, assume granted if at least one label exists
+          if (videoDevices.some((d) => d.label)) setPermissionStatus("granted");
+        }
+
         setCameras(videoDevices);
-        if (videoDevices.length > 0) {
+
+        if (videoDevices.length > 0 && !selectedCameraId) {
           setSelectedCameraId(videoDevices[0].deviceId);
         }
       } catch (err) {
-        console.error("Error loading cameras:", err);
+        console.error("Error enumerating devices:", err);
+        setPermissionStatus("denied");
       }
     };
 
     loadCameras();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Load seenPlates from localStorage and purge expired
@@ -103,26 +146,100 @@ export default function CameraFeed() {
 
   // start streaming with selected camera
   const startStream = async () => {
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+      alert("Camera access is not supported in this browser.");
+      return;
+    }
+
+    // If permission currently denied, try requesting explicitly
+    if (permissionStatus === "denied") {
+      try {
+        await navigator.mediaDevices.getUserMedia({ video: true });
+        setPermissionStatus("granted");
+      } catch (e) {
+        alert(
+          "Camera permission denied. Please enable camera access in your browser settings."
+        );
+        return;
+      }
+    }
+
     try {
+      // If user changed camera while streaming, this will replace srcObject
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
           deviceId: selectedCameraId ? { exact: selectedCameraId } : undefined,
           width: { ideal: 1280 },
           height: { ideal: 720 },
+          frameRate: { ideal: 30 },
         },
+        audio: false,
       });
 
+      // debug
+      console.log("✅ getUserMedia stream:", stream);
+      console.log(
+        "Tracks:",
+        stream
+          .getTracks()
+          .map((t) => ({ kind: t.kind, id: t.id, enabled: t.enabled }))
+      );
+
       if (videoRef.current) {
+        // stop any previously attached tracks first
+        if (videoRef.current.srcObject) {
+          const old = videoRef.current.srcObject as MediaStream;
+          old.getTracks().forEach((t) => t.stop());
+        }
+
         videoRef.current.srcObject = stream;
-        await videoRef.current.play();
+        setVideoReady(false);
+
+        // attach event listeners
+        videoRef.current.onloadedmetadata = async () => {
+          try {
+            await videoRef.current?.play();
+            setVideoReady(true);
+            console.log("Video play successful");
+          } catch (playErr) {
+            console.error("Error while trying to play video:", playErr);
+            setVideoReady(false);
+          }
+        };
+
+        // handle trackend (e.g., camera unplug)
+        stream.getTracks().forEach((t) => {
+          t.onended = () => {
+            console.log("Track ended:", t);
+            setIsStreaming(false);
+            setVideoReady(false);
+          };
+        });
       }
 
       setIsStreaming(true);
-      // capture every 0.9s
-      const id = setInterval(captureAndSendFrame, 900);
-      setIntervalId(id);
+
+      // capture every 0.9s (if not already set)
+      if (!intervalId) {
+        const id = setInterval(captureAndSendFrame, 900);
+        setIntervalId(id);
+      }
     } catch (err) {
       console.error("Error starting camera:", err);
+      setIsStreaming(false);
+      // Helpful messages for common errors
+      if (err && (err as any).name === "NotAllowedError") {
+        setPermissionStatus("denied");
+        alert(
+          "Camera permission denied. Please allow access or check site settings."
+        );
+      } else if ((err as any).name === "NotFoundError") {
+        alert(
+          "Selected camera not found. Try another device or refresh the page."
+        );
+      } else {
+        alert("Failed to start camera. Check console for details.");
+      }
     }
   };
 
@@ -131,13 +248,28 @@ export default function CameraFeed() {
     if (videoRef.current?.srcObject) {
       const tracks = (videoRef.current.srcObject as MediaStream).getTracks();
       tracks.forEach((t) => t.stop());
+      videoRef.current.srcObject = null;
     }
     if (intervalId) {
       clearInterval(intervalId);
       setIntervalId(null);
     }
     setIsStreaming(false);
+    setVideoReady(false);
   };
+
+  // when user switches camera while streaming, restart stream
+  useEffect(() => {
+    if (!isStreaming) return;
+    // restart stream using new camera
+    (async () => {
+      stopStream();
+      // small delay ensures tracks are stopped
+      await new Promise((r) => setTimeout(r, 150));
+      await startStream();
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedCameraId]);
 
   // Clear seen plates cache
   const clearSeenPlates = () => {
@@ -170,7 +302,6 @@ export default function CameraFeed() {
   const markPlateSeen = (plate: string) => {
     const now = Date.now();
     setSeenPlates((prev) => {
-      // remove any old entry for this plate
       const filtered = prev.filter((p) => p.plate !== plate);
       return [...filtered, { plate, timestamp: now }];
     });
@@ -267,6 +398,20 @@ export default function CameraFeed() {
     };
   }, [intervalId]);
 
+  // Small helper for the permission badge text
+  const permissionBadge = () => {
+    if (permissionStatus === "unsupported")
+      return { text: "Not supported", cls: "border-red-500 text-red-400" };
+    if (permissionStatus === "denied")
+      return { text: "Permission denied", cls: "border-red-500 text-red-400" };
+    if (permissionStatus === "granted")
+      return {
+        text: "Permission granted",
+        cls: "border-green-500 text-green-400",
+      };
+    return { text: "Unknown", cls: "border-yellow-500 text-yellow-400" };
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 p-4 sm:p-6">
       {/* Header */}
@@ -306,6 +451,13 @@ export default function CameraFeed() {
             >
               {isStreaming ? "Streaming" : "Stopped"}
             </Badge>
+
+            <Badge
+              variant="outline"
+              className={`px-3 py-1 ml-2 ${permissionBadge().cls}`}
+            >
+              {permissionBadge().text}
+            </Badge>
           </div>
         </div>
       </header>
@@ -326,7 +478,7 @@ export default function CameraFeed() {
                 <Select
                   value={selectedCameraId}
                   onValueChange={setSelectedCameraId}
-                  disabled={isStreaming}
+                  disabled={isStreaming || cameras.length === 0}
                 >
                   <SelectTrigger className="w-full sm:w-[240px]">
                     <SelectValue placeholder="Select Camera" />
@@ -362,14 +514,26 @@ export default function CameraFeed() {
                 </div>
               </div>
 
-              <div className="bg-black rounded overflow-hidden">
+              <div className="bg-black rounded overflow-hidden relative">
                 <video
                   ref={videoRef}
                   autoPlay
                   playsInline
                   muted
-                  className="w-full h-auto aspect-video object-cover"
+                  className="w-full h-auto aspect-video object-cover bg-black"
                 />
+                {/* overlay if video not ready */}
+                {!videoReady && (
+                  <div className="absolute inset-0 flex items-center justify-center text-center p-4">
+                    <div>
+                      <p className="text-gray-300 text-sm">Video not ready</p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        Make sure camera permission is allowed and the selected
+                        camera is available.
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <canvas ref={canvasRef} width={640} height={480} hidden />
@@ -379,6 +543,10 @@ export default function CameraFeed() {
                 <p>
                   New plates trigger SMS (if owner phone exists) and are cached
                   for 24 hours.
+                </p>
+                <p className="mt-2 text-gray-500 text-xs">
+                  Tip: if using mobile, open this app over HTTPS (ngrok or
+                  deployed URL) to allow camera access.
                 </p>
               </div>
             </CardContent>
@@ -412,7 +580,6 @@ export default function CameraFeed() {
                   {/* image */}
                   <div className="w-28 h-20 flex-shrink-0 bg-gray-800 rounded overflow-hidden flex items-center justify-center">
                     {d.images?.processed_crop ? (
-                      // processed crop prioritized
                       <img
                         src={`data:image/jpeg;base64,${d.images.processed_crop}`}
                         className="w-full h-full object-cover"
@@ -514,12 +681,11 @@ export default function CameraFeed() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        onClick={() => {
-                          // remove this detection from the list
+                        onClick={() =>
                           setDetections((prev) =>
                             prev.filter((x) => x.ts !== d.ts)
-                          );
-                        }}
+                          )
+                        }
                       >
                         Dismiss
                       </Button>
