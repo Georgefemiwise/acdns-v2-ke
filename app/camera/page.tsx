@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -11,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { sendDetectionAlert } from "@/lib/sms-service";
+import { ArrowLeftIcon } from "lucide-react"; // Import back arrow icon
 
 type SeenPlate = { plate: string; timestamp: number };
 type VehicleRecord = {
@@ -31,6 +33,7 @@ const EXPIRY_DURATION = 24 * 60 * 60 * 1000; // 24h
 const SEEN_PLATES_KEY = "seenPlates_v1";
 
 export default function CameraFeed() {
+  const router = useRouter();
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
@@ -44,6 +47,15 @@ export default function CameraFeed() {
   const [detections, setDetections] = useState<Detection[]>([]);
   const [seenPlates, setSeenPlates] = useState<SeenPlate[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  // Function to navigate back to home
+  const goBackToHome = () => {
+    // Stop camera if it's running before navigating away
+    if (isStreaming) {
+      stopCamera();
+    }
+    router.push("/");
+  };
 
   // load cameras
   useEffect(() => {
@@ -202,7 +214,18 @@ export default function CameraFeed() {
 
   return (
     <div className="min-h-screen bg-gray-900 text-white p-4">
-      <h1 className="text-2xl font-bold mb-4">📷 Camera + Detection</h1>
+      {/* Back Button and Title */}
+      <div className="flex items-center mb-4">
+        <Button
+          variant="outline"
+          onClick={goBackToHome}
+          className="mr-4 bg-gray-800 border-gray-600 hover:bg-gray-700"
+        >
+          <ArrowLeftIcon className="h-4 w-4 mr-2" />
+          Back
+        </Button>
+        <h1 className="text-2xl font-bold">📷 Camera + Detection</h1>
+      </div>
 
       <div className="mb-4 flex items-center gap-2">
         <Select
@@ -215,7 +238,10 @@ export default function CameraFeed() {
           </SelectTrigger>
           <SelectContent>
             {cameras.map((cam, idx) => (
-              <SelectItem key={cam.deviceId} value={cam.deviceId}>
+              <SelectItem 
+                key={cam.deviceId || `camera-${idx}`} 
+                value={cam.deviceId || `camera-${idx}`}
+              >
                 {cam.label || `Camera ${idx + 1}`}
               </SelectItem>
             ))}
@@ -277,3 +303,4 @@ export default function CameraFeed() {
     </div>
   );
 }
+
