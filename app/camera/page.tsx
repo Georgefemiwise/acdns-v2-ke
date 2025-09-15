@@ -7,7 +7,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Label } from "@/components/ui/label";
 import { sendDetectionAlert } from "@/lib/sms-service";
 import Link from "next/link";
-import { ArrowLeft, Camera } from "lucide-react";
+import { ArrowLeft, Camera, RefreshCw } from "lucide-react";
 
 type SeenPlate = { plate: string; timestamp: number };
 type VehicleRecord = {
@@ -18,13 +18,16 @@ type VehicleRecord = {
 };
 type Detection = {
   plate: string;
+  match?: boolean;
   ocr_conf?: number;
   vehicle?: VehicleRecord | null;
   ts: number;
   images?: { raw_crop?: string; processed_crop?: string };
 };
 
-const DETECTION_API_URL = "https://georgefemiwise-acdns.hf.space/detect";
+const BASE_URL = "https://georgefemiwise-acdns.hf.space";
+const DETECTION_API_URL = `${BASE_URL}/detect`;
+const CONNECT_2_DB = `${BASE_URL}/refresh_cache`;
 
 export default function CameraFeed() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -32,7 +35,9 @@ export default function CameraFeed() {
 
   const [cameras, setCameras] = useState<MediaDeviceInfo[]>([]);
   const [selectedCameraId, setSelectedCameraId] = useState<string>("");
+  const [activeCameraLabel, setActiveCameraLabel] = useState<string>("");
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isSwitchingCamera, setIsSwitchingCamera] = useState(false);
   const [intervalId, setIntervalId] = useState<ReturnType<
     typeof setInterval
   > | null>(null);
@@ -47,7 +52,7 @@ export default function CameraFeed() {
   useEffect(() => {
     const checkBackend = async () => {
       try {
-        const response = await fetch(DETECTION_API_URL, { method: "GET" });
+        const response = await fetch(CONNECT_2_DB, { method: "GET" });
         setIsBackendConnected(response.ok);
         console.log(
           `✅ Backend connection status: ${
@@ -63,61 +68,85 @@ export default function CameraFeed() {
   }, []);
 
   // Load all available cameras
-  useEffect(() => {
-    const loadCameras = async () => {
-      try {
-        // Request permission to access cameras to ensure all are enumerated
-        await navigator.mediaDevices.getUserMedia({ video: true });
-        const devices = await navigator.mediaDevices.enumerateDevices();
-        const videoDevices = devices.filter((d) => d.kind === "videoinput");
-        if (videoDevices.length === 0) {
-          setError("No cameras found. Please connect a camera and try again.");
-        } else {
-          setCameras(videoDevices);
-          setSelectedCameraId(videoDevices[0].deviceId); // Default to first camera
-          console.log(
-            `✅ Found ${videoDevices.length} camera(s):`,
-            videoDevices.map((d) => d.label || `Camera ${d.deviceId}`)
-          );
+  const loadCameras = async () => {
+    setError(null);
+    try {
+      await navigator.mediaDevices.getUserMedia({ video: true });
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter((d) => d.kind === "videoinput");
+
+      if (videoDevices.length === 0) {
+        setError("No cameras found. Please connect a camera and try again.");
+        setCameras([]);
+        setSelectedCameraId("");
+      } else {
+        setCameras(videoDevices);
+
+        // ✅ Only set default if none selected yet
+        if (!selectedCameraId) {
+          setSelectedCameraId(videoDevices[0].deviceId);
         }
-      } catch (err) {
-        console.error("Error loading cameras:", err);
-        setError(
-          "Failed to access cameras. Please check permissions or connect a camera."
-        );
       }
-    };
+    } catch (err: any) {
+      console.error("Error loading cameras:", err);
+      setError(
+        err.name === "NotAllowedError"
+          ? "Camera access denied. Please grant permission and try again."
+          : "Failed to access cameras. Please check permissions or connect a camera."
+      );
+      setCameras([]);
+      setSelectedCameraId("");
+    }
+  };
+
+  useEffect(() => {
     loadCameras();
+    // Listen for device changes (e.g., new camera connected)
+    navigator.mediaDevices.addEventListener("devicechange", loadCameras);
+    return () =>
+      navigator.mediaDevices.removeEventListener("devicechange", loadCameras);
   }, []);
 
-  // Start camera with selected camera ID
-  const startCamera = async () => {
+  // Start or switch camera
+  const startCamera = async (cameraId: string) => {
     if (!navigator.mediaDevices?.getUserMedia) {
       setError("MediaDevices API not supported by your browser.");
       return;
     }
 
-    if (!selectedCameraId) {
-      setError("No camera selected. Please choose a camera.");
+    if (!cameraId) {
+      setError("No camera selected. Please choose a camera or connect one.");
       return;
     }
 
+    setIsSwitchingCamera(true);
+    setError(null);
+
     try {
+      // Stop existing stream if active
+      if (videoRef.current?.srcObject) {
+        (videoRef.current.srcObject as MediaStream)
+          .getTracks()
+          .forEach((t) => t.stop());
+        videoRef.current.srcObject = null;
+      }
+
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { deviceId: { exact: selectedCameraId } },
+        video: { deviceId: { exact: cameraId } },
         audio: false,
       });
 
       if (videoRef.current) {
-        if (videoRef.current.srcObject) {
-          (videoRef.current.srcObject as MediaStream)
-            .getTracks()
-            .forEach((t) => t.stop());
-        }
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
         setIsStreaming(true);
-        console.log(`✅ Streaming started with camera: ${selectedCameraId}`);
+        const selectedCamera = cameras.find((cam) => cam.deviceId === cameraId);
+        setActiveCameraLabel(selectedCamera?.label || `Camera ${cameraId}`);
+        console.log(
+          `✅ Streaming started with camera: ${
+            selectedCamera?.label || cameraId
+          }`
+        );
       }
 
       if (!intervalId) {
@@ -126,9 +155,34 @@ export default function CameraFeed() {
       }
     } catch (err: any) {
       console.error("Camera error:", err);
-      setError(
-        `Failed to start camera: ${err.message}. Please ensure the selected camera is available.`
-      );
+      let errorMessage = "Failed to start camera: ";
+      if (err.name === "NotAllowedError") {
+        errorMessage += "Camera access denied. Please grant permission.";
+      } else if (
+        err.name === "NotFoundError" ||
+        err.message.includes("Could not start video source")
+      ) {
+        errorMessage +=
+          "Selected camera is unavailable. Trying another camera...";
+        // Try the next available camera
+        const currentIndex = cameras.findIndex(
+          (cam) => cam.deviceId === cameraId
+        );
+        const nextCamera = cameras[(currentIndex + 1) % cameras.length];
+        if (nextCamera && nextCamera.deviceId !== cameraId) {
+          setSelectedCameraId(nextCamera.deviceId);
+          setTimeout(() => startCamera(nextCamera.deviceId), 500); // Retry with next camera
+        } else {
+          setError("No other cameras available. Please check connections.");
+        }
+      } else {
+        errorMessage += err.message;
+      }
+      setError(errorMessage);
+      // Re-enumerate cameras
+      loadCameras();
+    } finally {
+      setIsSwitchingCamera(false);
     }
   };
 
@@ -142,7 +196,16 @@ export default function CameraFeed() {
     if (intervalId) clearInterval(intervalId);
     setIntervalId(null);
     setIsStreaming(false);
+    setActiveCameraLabel("");
     console.log("🛑 Camera stopped");
+  };
+
+  // Handle camera selection change
+  const handleCameraChange = (newCameraId: string) => {
+    setSelectedCameraId(newCameraId);
+    if (isStreaming) {
+      startCamera(newCameraId); // Switch camera during streaming
+    }
   };
 
   // Detection pipeline
@@ -223,26 +286,35 @@ export default function CameraFeed() {
               <Button
                 variant="ghost"
                 size="sm"
-                className="text-cyan-300 hover:text-cyan-200 transition-colors"
+                className="text-cyan-400 hover:text-cyan-300 transition-colors"
               >
                 <ArrowLeft className="h-5 w-5 mr-2" />
                 Back
               </Button>
             </Link>
-            <h1 className="text-2xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+            <h1 className="text-xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
               License Plate Scanner
             </h1>
           </div>
           <Button
-            onClick={isStreaming ? stopCamera : startCamera}
+            onClick={
+              isStreaming ? stopCamera : () => startCamera(selectedCameraId)
+            }
+            disabled={(!selectedCameraId && !isStreaming) || isSwitchingCamera}
             className={`bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 w-full sm:w-auto px-6 py-2  text-sm sm:text-base font-semibold transition-all ${
               isStreaming
                 ? "bg-red-600 hover:bg-red-700"
+                : !selectedCameraId || isSwitchingCamera
+                ? "bg-gray-600 cursor-not-allowed"
                 : "bg-teal-600 hover:bg-teal-700"
             }`}
           >
             <Camera className="h-5 w-5 mr-2" />
-            {isStreaming ? "Stop Stream" : "Start Stream"}
+            {isSwitchingCamera
+              ? "Switching..."
+              : isStreaming
+              ? "Stop Stream"
+              : "Start Stream"}
           </Button>
         </header>
 
@@ -251,12 +323,20 @@ export default function CameraFeed() {
           {/* Video Feed */}
           <div className="relative">
             {isStreaming && (
-              <Badge
-                variant="secondary"
-                className="absolute top-3 right-3 bg-teal-500 text-white font-semibold px-3 py-1 rounded-full animate-pulse"
-              >
-                LIVE
-              </Badge>
+              <div className="absolute top-3 right-3 flex gap-2 items-center">
+                <Badge
+                  variant="secondary"
+                  className="bg-teal-500 text-white font-semibold px-3 py-1 rounded-full animate-pulse"
+                >
+                  LIVE
+                </Badge>
+                <Badge
+                  variant="secondary"
+                  className="bg-gray-700 text-gray-100 font-semibold px-3 py-1 rounded-full"
+                >
+                  {activeCameraLabel || "Unknown Camera"}
+                </Badge>
+              </div>
             )}
             <video
               ref={videoRef}
@@ -266,37 +346,57 @@ export default function CameraFeed() {
               className="w-full rounded-lg border border-teal-500/30 shadow-md max-w-[90vw] sm:max-w-[600px]"
             />
           </div>
-
           {/* Controls */}
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">
-            <RadioGroup
-              value={selectedCameraId}
-              onValueChange={setSelectedCameraId}
-              disabled={isStreaming}
-              className="w-full sm:w-auto flex flex-col gap-3"
-            >
-              {cameras.length === 0 ? (
-                <p className="text-gray-400 text-sm sm:text-base">
-                  No cameras detected. Please connect a camera.
-                </p>
-              ) : (
-                cameras.map((cam, idx) => (
-                  <div key={cam.deviceId} className="flex items-center gap-3">
-                    <RadioGroupItem
-                      value={cam.deviceId}
-                      id={cam.deviceId}
-                      className="border-teal-500 text-teal-500"
-                    />
-                    <Label
-                      htmlFor={cam.deviceId}
-                      className="text-gray-100 text-sm sm:text-base cursor-pointer"
-                    >
-                      {cam.label || `Camera ${idx + 1}`}
-                    </Label>
-                  </div>
-                ))
-              )}
-            </RadioGroup>
+            <div className="flex flex-col gap-3 w-full">
+              <div className="flex justify-between items-center">
+                <h3 className="text-sm sm:text-base font-semibold text-teal-300">
+                  Select Camera
+                </h3>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={loadCameras}
+                  className="text-cyan-500 hover:text-cyan-200"
+                  disabled={isSwitchingCamera}
+                >
+                  <RefreshCw className="h-4 w-4 mr-2" />
+                  Retry
+                </Button>
+              </div>
+
+              {/* the tuggle */}
+              <RadioGroup
+                value={selectedCameraId}
+                onValueChange={(newId) => {
+                  handleCameraChange(newId);
+                }}
+                className="w-full flex flex-col gap-3"
+              >
+                {cameras.length === 0 ? (
+                  <p className="text-gray-400 text-sm sm:text-base">
+                    No cameras detected. Please connect a camera.
+                  </p>
+                ) : (
+                  cameras.map((cam, idx) => (
+                    <div key={cam.deviceId} className="flex items-center gap-3">
+                      <RadioGroupItem
+                        value={cam.deviceId}
+                        id={cam.deviceId}
+                        className="border-teal-500 text-teal-500"
+                        disabled={isSwitchingCamera}
+                      />
+                      <Label
+                        htmlFor={cam.deviceId}
+                        className="text-gray-100 text-sm sm:text-base cursor-pointer capitalize"
+                      >
+                        {cam.label || `Camera ${idx + 1}`}
+                      </Label>
+                    </div>
+                  ))
+                )}
+              </RadioGroup>
+            </div>
             <Badge
               variant="outline"
               className={`w-fit px-3 py-1 text-sm font-semibold rounded-full ${
@@ -338,7 +438,7 @@ export default function CameraFeed() {
                         {d.plate}
                       </Badge>
                       <span className="text-xs text-gray-400">
-                        Confidence: {d.ocr_conf ?? "—"}
+                        Confidence: {d.match ?? "—"}
                       </span>
                     </div>
                     {d.vehicle?.owner_phone && (
