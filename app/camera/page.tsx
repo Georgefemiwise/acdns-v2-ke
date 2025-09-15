@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { sendDetectionAlert } from "@/lib/sms-service";
 import Link from "next/link";
 import { ArrowLeft, Camera, RefreshCw } from "lucide-react";
+import { useCallback } from "react";
 
 type SeenPlate = { plate: string; timestamp: number };
 type VehicleRecord = {
@@ -25,9 +26,13 @@ type Detection = {
   images?: { raw_crop?: string; processed_crop?: string };
 };
 
+
+// urls
 const BASE_URL = "https://georgefemiwise-acdns.hf.space";
 const DETECTION_API_URL = `${BASE_URL}/detect`;
 const CONNECT_2_DB = `${BASE_URL}/refresh_cache`;
+
+
 
 export default function CameraFeed() {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -47,6 +52,11 @@ export default function CameraFeed() {
   const [isBackendConnected, setIsBackendConnected] = useState<boolean | null>(
     null
   );
+  const selectedCameraIdRef = useRef<string>(selectedCameraId);
+
+  useEffect(() => {
+    selectedCameraIdRef.current = selectedCameraId;
+  }, [selectedCameraId]);
 
   // Check backend connection
   useEffect(() => {
@@ -67,11 +77,24 @@ export default function CameraFeed() {
     checkBackend();
   }, []);
 
-  // Load all available cameras
-  const loadCameras = async () => {
+
+  const loadCameras = useCallback(async () => {
     setError(null);
     try {
-      await navigator.mediaDevices.getUserMedia({ video: true });
+      // Request permission and immediately stop the temporary stream so we don't hold default camera open
+      let tempStream: MediaStream | null = null;
+      try {
+        tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+        // stop immediately to avoid locking the default camera
+        tempStream.getTracks().forEach((t) => t.stop());
+      } catch (permErr) {
+        // If user denies permission, allow enumerateDevices to still run (may return fewer details)
+        console.warn(
+          "Permission prompt or error during temp getUserMedia:",
+          permErr
+        );
+      }
+
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter((d) => d.kind === "videoinput");
 
@@ -79,13 +102,23 @@ export default function CameraFeed() {
         setError("No cameras found. Please connect a camera and try again.");
         setCameras([]);
         setSelectedCameraId("");
-      } else {
-        setCameras(videoDevices);
+        return;
+      }
 
-        // ✅ Only set default if none selected yet
-        if (!selectedCameraId) {
-          setSelectedCameraId(videoDevices[0].deviceId);
-        }
+      setCameras(videoDevices);
+
+      // keep previous selection if still present, otherwise pick first
+      const prevId = selectedCameraIdRef.current;
+      const stillConnected = videoDevices.some(
+        (cam) => cam.deviceId === prevId
+      );
+
+      if (stillConnected) {
+        // keep it — ensure state stays in sync
+        setSelectedCameraId(prevId);
+      } else {
+        // if nothing selected (first run) or previous disappeared, pick first
+        setSelectedCameraId((prev) => prev || videoDevices[0].deviceId);
       }
     } catch (err: any) {
       console.error("Error loading cameras:", err);
@@ -97,15 +130,18 @@ export default function CameraFeed() {
       setCameras([]);
       setSelectedCameraId("");
     }
-  };
+  }, []); // no deps because we use selectedCameraIdRef for latest selection
 
-  useEffect(() => {
-    loadCameras();
-    // Listen for device changes (e.g., new camera connected)
-    navigator.mediaDevices.addEventListener("devicechange", loadCameras);
-    return () =>
-      navigator.mediaDevices.removeEventListener("devicechange", loadCameras);
-  }, []);
+useEffect(() => {
+  // initial load
+  loadCameras();
+
+  // attach devicechange listener
+  navigator.mediaDevices.addEventListener("devicechange", loadCameras);
+  return () =>
+    navigator.mediaDevices.removeEventListener("devicechange", loadCameras);
+}, [loadCameras]);
+
 
   // Start or switch camera
   const startCamera = async (cameraId: string) => {
