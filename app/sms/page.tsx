@@ -1,59 +1,81 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useEffect } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Textarea } from "@/components/ui/textarea"
-import { Badge } from "@/components/ui/badge"
-import { MessageSquare, Send, Users, Plus, Trash2, CheckCircle, AlertCircle, Heart, Zap, FileText, ArrowLeft } from "lucide-react"
-import { supabase } from "@/lib/supabase"
-import { useAuth } from "@/contexts/AuthContext"
-import { sendWelcomeSms, sendBulkSms } from "@/lib/sms-service"
-import { generateRecipientWelcomeMessage, aiSmsGenerator } from "@/lib/ai-sms-generator"
-import Link from "next/link"
+import { useState, useEffect } from "react";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@/components/ui/badge";
+import {
+  MessageSquare,
+  Send,
+  Users,
+  Plus,
+  Trash2,
+  CheckCircle,
+  AlertCircle,
+  Heart,
+  Zap,
+  FileText,
+  ArrowLeft,
+} from "lucide-react";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/contexts/AuthContext";
+import { sendWelcomeSms, sendBulkSms } from "@/lib/sms-service";
+import {
+  generateRecipientWelcomeMessage,
+  aiSmsGenerator,
+} from "@/lib/ai-sms-generator";
+import Link from "next/link";
+import { sendBulkSmsAction } from "../actions/sendSms";
 
 interface SmsRecipient {
-  id: string
-  name: string
-  phone: string
-  status: "active" | "inactive"
-  created_at: string
+  id: string;
+  name: string;
+  phone: string;
+  status: "active" | "inactive";
+  created_at: string;
 }
 
 interface SmsMessage {
-  id: string
-  message_content: string
-  message_type: string
-  recipients_count: number
-  status: string
-  sent_at: string
+  id: string;
+  message_content: string;
+  message_type: string;
+  recipients_count: number;
+  status: string;
+  sent_at: string;
 }
 
 export default function SmsPage() {
-  const { user } = useAuth()
-  const [recipients, setRecipients] = useState<SmsRecipient[]>([])
-  const [messages, setMessages] = useState<SmsMessage[]>([])
-  const [loading, setLoading] = useState(true)
-  const [sending, setSending] = useState(false)
-  const [addingRecipient, setAddingRecipient] = useState(false)
-  const [message, setMessage] = useState({ type: "", text: "" })
+  const { user } = useAuth();
+  const [recipients, setRecipients] = useState<SmsRecipient[]>([]);
+  const [messages, setMessages] = useState<SmsMessage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [addingRecipient, setAddingRecipient] = useState(false);
+  const [message, setMessage] = useState({ type: "", text: "" });
 
   const [newRecipient, setNewRecipient] = useState({
     name: "",
     phone: "",
-  })
+  });
 
-  const [bulkMessage, setBulkMessage] = useState("")
+  const [bulkMessage, setBulkMessage] = useState("");
 
   useEffect(() => {
     if (user) {
-      loadData()
+      loadData();
     }
-  }, [user])
+  }, [user]);
 
   const loadData = async () => {
     try {
@@ -62,11 +84,11 @@ export default function SmsPage() {
         .from("sms_recipients")
         .select("*")
         .eq("created_by", user?.id)
-        .order("created_at", { ascending: false })
-console.log("recipients Data", recipientsData);
+        .order("created_at", { ascending: false });
+      // console.log("recipients Data", recipientsData);
 
-      if (recipientsError) throw recipientsError
-      setRecipients(recipientsData || [])
+      if (recipientsError) throw recipientsError;
+      setRecipients(recipientsData || []);
 
       // Load SMS messages
       const { data: messagesData, error: messagesError } = await supabase
@@ -74,28 +96,28 @@ console.log("recipients Data", recipientsData);
         .select("*")
         .eq("sent_by", user?.id)
         .order("sent_at", { ascending: false })
-        .limit(10)
+        .limit(5);
 
-      if (messagesError) throw messagesError
-      setMessages(messagesData || [])
+      if (messagesError) throw messagesError;
+      setMessages(messagesData || []);
     } catch (error) {
-      console.error("Error loading SMS data:", error)
-      setMessage({ type: "error", text: "Failed to load SMS data" })
+      console.error("Error loading SMS data:", error);
+      setMessage({ type: "error", text: "Failed to load SMS data" });
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   const handleAddRecipient = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!user) {
-      setMessage({ type: "error", text: "Please log in to add recipients" })
-      return
+      setMessage({ type: "error", text: "Please log in to add recipients" });
+      return;
     }
 
-    setAddingRecipient(true)
-    setMessage({ type: "", text: "" })
+    setAddingRecipient(true);
+    setMessage({ type: "", text: "" });
 
     try {
       // Add recipient to database
@@ -104,27 +126,37 @@ console.log("recipients Data", recipientsData);
         .insert({
           name: newRecipient.name,
           phone: newRecipient.phone,
-          // status: "active",
+          status: "active",
           created_by: user.id,
-        })
-        // .select()
-        // .single();
+        });
+      // .select()
+      // .single();
 
       if (recipientError) {
         if (recipientError.code === "23505") {
-          setMessage({ type: "error", text: "A recipient with this phone number already exists" })
+          setMessage({
+            type: "error",
+            text: "A recipient with this phone number already exists",
+          });
         } else {
-          setMessage({ type: "error", text: `Failed to add recipient: ${recipientError.message}` })
+          setMessage({
+            type: "error",
+            text: `Failed to add recipient: ${recipientError.message}`,
+          });
         }
-        return
-        
+        return;
       }
-console.log(recipientData);
+      console.log(recipientData);
 
       // Generate and send welcome message
       try {
-        const welcomeMessage = await generateRecipientWelcomeMessage(newRecipient.name)
-        const smsResult = await sendWelcomeSms(newRecipient.name, newRecipient.phone)
+        const welcomeMessage = await generateRecipientWelcomeMessage(
+          newRecipient.name
+        );
+        const smsResult = await sendWelcomeSms(
+          newRecipient.name,
+          newRecipient.phone
+        );
 
         if (smsResult.success) {
           // Log welcome SMS in database
@@ -135,75 +167,87 @@ console.log(recipientData);
             status: "sent",
             // sent_at: new Date().toISOString(),
             sent_by: user.id,
-          })
+          });
 
-          const messageGenType = aiSmsGenerator.isAiAvailable() ? "AI-generated" : "template-based"
+          const messageGenType = aiSmsGenerator.isAiAvailable()
+            ? "AI-generated"
+            : "template-based";
           setMessage({
             type: "success",
-            text: `✨ ${newRecipient.name} added successfully and ${messageGenType} welcome SMS sent via ${smsResult.provider}! "${welcomeMessage.substring(0, 50)}..."`,
-          })
+            text: `✨ ${
+              newRecipient.name
+            } added successfully and ${messageGenType} welcome SMS sent via ${
+              smsResult.provider
+            }! "${welcomeMessage.substring(0, 50)}..."`,
+          });
         } else {
           setMessage({
             type: "success",
             text: `Recipient added successfully! Welcome SMS failed: ${smsResult.error}`,
-          })
+          });
         }
       } catch (smsError) {
-        console.error("Welcome SMS failed:", smsError)
+        console.error("Welcome SMS failed:", smsError);
         setMessage({
           type: "success",
           text: "Recipient added successfully! Welcome SMS sending failed.",
-        })
+        });
       }
 
       // Reset form and reload data
-      setNewRecipient({ name: "", phone: "" })
-      await loadData()
+      setNewRecipient({ name: "", phone: "" });
+      await loadData();
     } catch (error) {
-      console.error("Error adding recipient:", error)
-      setMessage({ type: "error", text: "An unexpected error occurred" })
+      console.error("Error adding recipient:", error);
+      setMessage({ type: "error", text: "An unexpected error occurred" });
     } finally {
-      setAddingRecipient(false)
+      setAddingRecipient(false);
     }
-  }
+  };
 
   const handleDeleteRecipient = async (id: string, name: string) => {
-    if (!confirm(`Are you sure you want to delete ${name}?`)) return
+    if (!confirm(`Are you sure you want to delete ${name}?`)) return;
 
     try {
-      const { error } = await supabase.from("sms_recipients").delete().eq("id", id)
+      const { error } = await supabase
+        .from("sms_recipients")
+        .delete()
+        .eq("id", id);
 
-      if (error) throw error
+      if (error) throw error;
 
-      setMessage({ type: "success", text: `${name} removed successfully` })
-      await loadData()
+      setMessage({ type: "success", text: `${name} removed successfully` });
+      await loadData();
     } catch (error) {
-      console.error("Error deleting recipient:", error)
-      setMessage({ type: "error", text: "Failed to delete recipient" })
+      console.error("Error deleting recipient:", error);
+      setMessage({ type: "error", text: "Failed to delete recipient" });
     }
-  }
+  };
 
   const handleSendBulkMessage = async (e: React.FormEvent) => {
-    e.preventDefault()
+    e.preventDefault();
 
     if (!bulkMessage.trim()) {
-      setMessage({ type: "error", text: "Please enter a message to send" })
-      return
+      setMessage({ type: "error", text: "Please enter a message to send" });
+      return;
     }
 
     if (recipients.length === 0) {
-      setMessage({ type: "error", text: "No recipients available. Add some recipients first." })
-      return
+      setMessage({
+        type: "error",
+        text: "No recipients available. Add some recipients first.",
+      });
+      return;
     }
 
-    setSending(true)
-    setMessage({ type: "", text: "" })
+    setSending(true);
+    setMessage({ type: "", text: "" });
 
     try {
-      const activeRecipients = recipients.filter((r) => r.status === "active")
-      const phoneNumbers = activeRecipients.map((r) => r.phone)
+      const activeRecipients = recipients.filter((r) => r.status === "active");
+      const phoneNumbers = activeRecipients.map((r) => r.phone);
 
-      const bulkResult = await sendBulkSms(phoneNumbers, bulkMessage)
+      const bulkResult = await sendBulkSmsAction(phoneNumbers, bulkMessage);
 
       // Log bulk SMS in database
       await supabase.from("sms_messages").insert({
@@ -213,29 +257,29 @@ console.log(recipientData);
         status: bulkResult.success > 0 ? "sent" : "failed",
         // sent_at: new Date().toISOString(),
         sent_by: user?.id,
-      })
+      });
 
       setMessage({
         type: "success",
         text: `📱 Bulk SMS sent! Success: ${bulkResult.success}, Failed: ${bulkResult.failed}`,
-      })
+      });
 
-      setBulkMessage("")
-      await loadData()
+      setBulkMessage("");
+      await loadData();
     } catch (error) {
-      console.error("Error sending bulk SMS:", error)
-      setMessage({ type: "error", text: "Failed to send bulk SMS" })
+      console.error("Error sending bulk SMS:", error);
+      setMessage({ type: "error", text: "Failed to send bulk SMS" });
     } finally {
-      setSending(false)
+      setSending(false);
     }
-  }
+  };
 
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-900 via-purple-900/20 to-gray-900 flex items-center justify-center">
         <div className="text-cyan-400">Loading SMS dashboard...</div>
       </div>
-    )
+    );
   }
 
   return (

@@ -185,8 +185,10 @@ useEffect(() => {
         );
       }
 
+
+      // intervals of snapshort sent
       if (!intervalId) {
-        const id = setInterval(captureAndDetect, 900);
+        const id = setInterval(captureAndDetect, 1000);
         setIntervalId(id);
       }
     } catch (err: any) {
@@ -381,6 +383,9 @@ useEffect(() => {
               muted
               className="w-full rounded-lg border border-teal-500/30 shadow-md max-w-[90vw] sm:max-w-[600px]"
             />
+            <div className="text-xs text-opacity-40 text-gray-300 px-3 py-1 rounded-lg shadow-md ">
+               A snapshot is sent automatically every second (1s)
+            </div>
           </div>
           {/* Controls */}
           <div className="flex flex-col sm:flex-row gap-4 items-start sm:items-center">

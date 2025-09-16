@@ -81,11 +81,11 @@ class SmsService {
     // Try Arkesel first (primary provider)
     if (this.providers.arkesel.available) {
       try {
-        return await this.sendViaArkesel(cleanPhone, message);
       } catch (error) {
         console.error("Arkesel SMS failed:", error);
       }
     }
+    return await this.sendViaArkesel(cleanPhone, message);
 
     // Try Twilio as fallback
     if (this.providers.twilio.available) {
