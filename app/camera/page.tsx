@@ -314,6 +314,14 @@ useEffect(() => {
     }, "image/jpeg");
   };
 
+  const handleToggleCamera = () => {
+  if (isStreaming) {
+    stopCamera();
+  } else {
+    startCamera(selectedCameraIdRef.current); // use ref for latest value
+  }
+};
+
   return (
     <div className="min-h-screen bg-gray-950 text-gray-100 font-sans">
       <div className="container mx-auto px-4 sm:px-6 py-6">
@@ -334,26 +342,25 @@ useEffect(() => {
               License Plate Scanner
             </h1>
           </div>
-          <Button
-            onClick={
-              isStreaming ? stopCamera : () => startCamera(selectedCameraId)
-            }
-            disabled={(!selectedCameraId && !isStreaming) || isSwitchingCamera}
-            className={`bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 w-full sm:w-auto px-6 py-2  text-sm sm:text-base font-semibold transition-all ${
-              isStreaming
-                ? "bg-red-600 hover:bg-red-700"
-                : !selectedCameraId || isSwitchingCamera
-                ? "bg-gray-600 cursor-not-allowed"
-                : "bg-teal-600 hover:bg-teal-700"
-            }`}
-          >
-            <Camera className="h-5 w-5 mr-2" />
-            {isSwitchingCamera
-              ? "Switching..."
-              : isStreaming
-              ? "Stop Stream"
-              : "Start Stream"}
-          </Button>
+         <Button
+  onClick={handleToggleCamera}
+  disabled={(!selectedCameraId && !isStreaming) || isSwitchingCamera}
+  className={`bg-gradient-to-r from-cyan-500 to-purple-500 hover:from-cyan-600 hover:to-purple-600 w-full sm:w-auto px-6 py-2  text-sm sm:text-base font-semibold transition-all ${
+    isStreaming
+      ? "bg-red-600 hover:bg-red-700"
+      : !selectedCameraId || isSwitchingCamera
+      ? "bg-gray-600 cursor-not-allowed"
+      : "bg-teal-600 hover:bg-teal-700"
+  }`}
+>
+  <Camera className="h-5 w-5 mr-2" />
+  {isSwitchingCamera
+    ? "Switching..."
+    : isStreaming
+    ? "Stop Stream"
+    : "Start Stream"}
+</Button>
+
         </header>
 
         {/* Main Content */}
